@@ -34,11 +34,16 @@ func NewLongPollAdapter(plugin weixin.PluginInterface) *LongPollAdapter {
 // GetUpdates fetches new messages using long-polling.
 // This is a single poll request - for continuous monitoring use StartMonitoring.
 func (a *LongPollAdapter) GetUpdates(ctx context.Context, req *channel.GetUpdatesRequest) (*channel.GetUpdatesResult, error) {
+	fmt.Printf("[weixin] LongPollAdapter.GetUpdates called: accountID=%s, syncBuf=%q\n", req.AccountID, req.SyncBuf)
+
 	// Get account
 	account, err := a.plugin.Accounts().Get(req.AccountID)
 	if err != nil {
+		fmt.Printf("[weixin] GetUpdates failed to get account: %v\n", err)
 		return nil, fmt.Errorf("get account: %w", err)
 	}
+
+	fmt.Printf("[weixin] Account: Enabled=%v, Configured=%v\n", account.Enabled, account.Configured)
 
 	if !account.Enabled || !account.Configured {
 		return nil, &channel.ChannelError{
@@ -50,6 +55,7 @@ func (a *LongPollAdapter) GetUpdates(ctx context.Context, req *channel.GetUpdate
 
 	// Check session guard
 	if err := sessionguard.AssertSessionActive(req.AccountID); err != nil {
+		fmt.Printf("[weixin] Session guard blocked: %v\n", err)
 		return &channel.GetUpdatesResult{
 			ErrCode: sessionguard.SessionExpiredErrCode,
 			ErrMsg:  err.Error(),
@@ -58,18 +64,24 @@ func (a *LongPollAdapter) GetUpdates(ctx context.Context, req *channel.GetUpdate
 
 	// Create API client
 	client := api.NewClient(account.BaseURL, account.BotToken)
+	fmt.Printf("[weixin] Calling API GetUpdates: baseURL=%q\n", account.BaseURL)
 
 	// Load sync buffer if not provided
 	syncBuf := req.SyncBuf
 	if syncBuf == "" {
 		syncBuf, _ = storage.LoadSyncBuf(req.AccountID)
+		fmt.Printf("[weixin] Loaded syncBuf from storage: %q\n", syncBuf)
 	}
 
 	// Call getUpdates with timeout
 	resp, err := client.GetUpdates(ctx, syncBuf)
 	if err != nil {
+		fmt.Printf("[weixin] API GetUpdates error: %v\n", err)
 		return nil, fmt.Errorf("get updates: %w", err)
 	}
+
+	fmt.Printf("[weixin] API GetUpdates success: Ret=%d, ErrCode=%d, Messages=%d, SyncBuf=%q\n",
+		resp.Ret, resp.ErrCode, len(resp.Messages), resp.GetUpdatesBuf)
 
 	// Check for session expiration
 	if resp.ErrCode == sessionguard.SessionExpiredErrCode {

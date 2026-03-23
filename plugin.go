@@ -86,10 +86,22 @@ type Plugin struct {
 
 // NewPlugin creates a new WeChat plugin.
 func NewPlugin(config *WeChatConfig) *Plugin {
+	return NewPluginWithDataDir(config, "")
+}
+
+// NewPluginWithDataDir creates a new WeChat plugin with a custom data directory.
+// If dataDir is empty, uses the default ~/.agentchannel/accounts.
+func NewPluginWithDataDir(config *WeChatConfig, dataDir string) *Plugin {
 	p := &Plugin{
 		config:   config,
-		accounts: NewAccountManager(),
 		running:  make(map[string]bool),
+	}
+
+	// Create account manager with custom or default directory
+	if dataDir != "" {
+		p.accounts = NewAccountManagerWithDir(dataDir)
+	} else {
+		p.accounts = NewAccountManager()
 	}
 
 	// Create base plugin with metadata

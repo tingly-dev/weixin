@@ -26,6 +26,14 @@ func NewAccountManager() *AccountManager {
 	}
 }
 
+// NewAccountManagerWithDir creates a new account manager with a custom base directory.
+func NewAccountManagerWithDir(baseDir string) *AccountManager {
+	os.MkdirAll(baseDir, 0700)
+	return &AccountManager{
+		baseDir: baseDir,
+	}
+}
+
 // accountPath returns the path to an account file.
 func (m *AccountManager) accountPath(accountID string) string {
 	return filepath.Join(m.baseDir, accountID+".json")

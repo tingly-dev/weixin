@@ -75,14 +75,17 @@ func ConvertInboundMessage(msg *weixin.WeixinMessage, accountID string) *channel
 		Timestamp:    timestamp,
 		Text:         text,
 		Attachments:  attachments,
-		From:         msg.FromUserID,
-		SenderID:     msg.FromUserID,
-		To:           msg.ToUserID,
+		From:         msg.ToUserID,     // Bot ID (sender of this message in the system)
+		SenderID:     msg.ToUserID,
+		To:           msg.FromUserID,   // User ID (who sent the message - this is the reply target)
 		ContextToken: msg.ContextToken,
 		Metadata: map[string]interface{}{
 			"session_id":    msg.SessionID,
 			"message_type":  msg.MessageType,
 			"message_state": msg.MessageState,
+			// Store original sender for reference
+			"from_user_id":  msg.FromUserID,
+			"to_user_id":    msg.ToUserID,
 		},
 	}
 }
