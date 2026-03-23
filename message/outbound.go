@@ -7,6 +7,7 @@ import (
 
 	"github.com/tingly-dev/weixin"
 	"github.com/tingly-dev/weixin/channel"
+	"github.com/tingly-dev/weixin/markdown"
 	"github.com/tingly-dev/weixin/media"
 )
 
@@ -15,18 +16,70 @@ import (
 func ConvertToOutboundMessage(msg *channel.OutboundMessage) (toUserID, contextToken string, items []weixin.MessageItem) {
 	toUserID = msg.To
 	contextToken = msg.ContextToken
-	items = ConvertOutboundMessage(msg)
+	items = ConvertOutboundMessageToList(msg)
 	return
 }
 
 // BuildTextItem creates a text MessageItem.
+// Converts markdown to plain text before creating the item.
 func BuildTextItem(text string) weixin.MessageItem {
+	plainText := markdown.ToPlainText(text)
 	return weixin.MessageItem{
 		Type: weixin.MessageItemTypeText,
 		TextItem: &weixin.TextItem{
-			Text: text,
+			Text: plainText,
 		},
 	}
+}
+
+// ConvertOutboundMessageToList converts a channel.OutboundMessage to WeChat MessageItem list.
+// Applies markdown stripping to text content.
+func ConvertOutboundMessageToList(msg *channel.OutboundMessage) []weixin.MessageItem {
+	var items []weixin.MessageItem
+
+	// Add text item if present (convert markdown to plain text)
+	if msg.Text != "" {
+		plainText := markdown.ToPlainText(msg.Text)
+		items = append(items, weixin.MessageItem{
+			Type: weixin.MessageItemTypeText,
+			TextItem: &weixin.TextItem{
+				Text: plainText,
+			},
+		})
+	}
+
+	// Add media item if present
+	if msg.MediaURL != "" || len(msg.MediaData) > 0 {
+		switch msg.ContentType {
+		case "image":
+			items = append(items, weixin.MessageItem{
+				Type: weixin.MessageItemTypeImage,
+				ImageItem: &weixin.ImageItem{
+					URL: msg.MediaURL,
+				},
+			})
+		case "video":
+			items = append(items, weixin.MessageItem{
+				Type:      weixin.MessageItemTypeVideo,
+				VideoItem: &weixin.VideoItem{},
+			})
+		case "audio", "voice":
+			items = append(items, weixin.MessageItem{
+				Type:      weixin.MessageItemTypeVoice,
+				VoiceItem: &weixin.VoiceItem{},
+			})
+		default:
+			// Treat as file
+			items = append(items, weixin.MessageItem{
+				Type: weixin.MessageItemTypeFile,
+				FileItem: &weixin.FileItem{
+					FileName: msg.FileName,
+				},
+			})
+		}
+	}
+
+	return items
 }
 
 // BuildImageItem creates an image MessageItem with CDN media reference.

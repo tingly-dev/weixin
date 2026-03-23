@@ -17,6 +17,7 @@ type WeChatAccount struct {
 	BotID       string    `json:"botId"`
 	UserID      string    `json:"userId"`
 	BaseURL     string    `json:"baseUrl"`
+	CDNBaseURL  string    `json:"cdnBaseUrl,omitempty"` // CDN base URL for media uploads/downloads
 	Enabled     bool      `json:"enabled"`
 	Configured  bool      `json:"configured"`
 	CreatedAt   time.Time `json:"createdAt"`

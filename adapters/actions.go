@@ -43,7 +43,7 @@ func (a *ActionsAdapter) Send(ctx context.Context, msg *channel.OutboundMessage)
 	// Convert message
 	toUserID := msg.To
 	contextToken := msg.ContextToken
-	items := message.ConvertOutboundMessage(msg)
+	items := message.ConvertOutboundMessageToList(msg)
 
 	// Send message
 	if err := client.SendMessage(ctx, toUserID, contextToken, items); err != nil {
