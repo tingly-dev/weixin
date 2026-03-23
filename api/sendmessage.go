@@ -3,14 +3,32 @@ package api
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
+	"fmt"
+
 	"github.com/tingly-dev/weixin"
 )
 
+// generateClientID generates a unique client ID.
+func generateClientID() string {
+	b := make([]byte, 16)
+	rand.Read(b)
+	return "openclaw-weixin-" + hex.EncodeToString(b)[:16]
+}
+
 // SendMessage sends a message to weixin.
 func (c *Client) SendMessage(ctx context.Context, toUserID, contextToken string, items []weixin.MessageItem) error {
+	if contextToken == "" {
+		return fmt.Errorf("contextToken is required")
+	}
 	req := &SendMessageRequest{
 		Msg: &WeixinMessageWrapper{
+			FromUserID:   "", // Bot ID is handled by server
 			ToUserID:     toUserID,
+			ClientID:     generateClientID(),
+			MessageType:  weixin.MessageTypeBot,
+			MessageState: weixin.MessageStateFinish,
 			ContextToken: contextToken,
 			ItemList:     items,
 		},
