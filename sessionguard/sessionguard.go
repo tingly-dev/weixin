@@ -73,9 +73,9 @@ func AssertSessionActive(accountID string) error {
 	if IsSessionPaused(accountID) {
 		remaining := GetRemainingPauseMs(accountID)
 		return &SessionPausedError{
-			AccountID:  accountID,
-			Remaining:  remaining,
-			ErrCode:    SessionExpiredErrCode,
+			AccountID: accountID,
+			Remaining: remaining,
+			ErrCode:   SessionExpiredErrCode,
 		}
 	}
 	return nil

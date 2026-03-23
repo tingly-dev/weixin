@@ -18,15 +18,15 @@ import (
 
 // LongPollAdapter handles long-polling message synchronization for weixin.
 type LongPollAdapter struct {
-	plugin  weixin.PluginInterface
+	plugin   weixin.PluginInterface
 	monitors map[string]*monitor.Monitor // accountID -> monitor
-	mu      sync.RWMutex
+	mu       sync.RWMutex
 }
 
 // NewLongPollAdapter creates a new long-poll adapter.
 func NewLongPollAdapter(plugin weixin.PluginInterface) *LongPollAdapter {
 	return &LongPollAdapter{
-		plugin:  plugin,
+		plugin:   plugin,
 		monitors: make(map[string]*monitor.Monitor),
 	}
 }

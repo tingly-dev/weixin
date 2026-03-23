@@ -27,11 +27,11 @@ type SendMessageRequest struct {
 
 // WeixinMessageWrapper wraps WeixinMessage for sending.
 type WeixinMessageWrapper struct {
-	FromUserID   string               `json:"from_user_id"`    // Bot ID (sender)
-	ToUserID     string               `json:"to_user_id"`      // User ID (recipient)
-	ClientID     string               `json:"client_id"`       // Unique client ID
-	MessageType  int                  `json:"message_type"`    // 2 = BOT
-	MessageState int                  `json:"message_state"`   // 2 = FINISH
+	FromUserID   string               `json:"from_user_id"`  // Bot ID (sender)
+	ToUserID     string               `json:"to_user_id"`    // User ID (recipient)
+	ClientID     string               `json:"client_id"`     // Unique client ID
+	MessageType  int                  `json:"message_type"`  // 2 = BOT
+	MessageState int                  `json:"message_state"` // 2 = FINISH
 	ContextToken string               `json:"context_token,omitempty"`
 	ItemList     []weixin.MessageItem `json:"item_list"`
 }

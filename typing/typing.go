@@ -17,8 +17,8 @@ const (
 
 // TypingStatus constants from WeChat API.
 const (
-	TypingStatusTyping  = 1
-	TypingStatusCancel  = 2
+	TypingStatusTyping = 1
+	TypingStatusCancel = 2
 )
 
 // TypingManager manages typing indicators for WeChat conversations.

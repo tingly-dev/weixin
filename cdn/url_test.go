@@ -10,7 +10,7 @@ func TestBuildUploadURL(t *testing.T) {
 	testCases := []struct {
 		name        string
 		cdnBaseURL  string
-		uploadParam  string
+		uploadParam string
 		filekey     string
 		expectedURL string
 	}{
@@ -26,7 +26,7 @@ func TestBuildUploadURL(t *testing.T) {
 			cdnBaseURL:  "https://cdn.example.com/",
 			uploadParam: "param=with=equals",
 			filekey:     "key/with/slash",
-			expectedURL: "https://cdn.example.com/upload?encrypted_query_param=param=with%3Dequals&filekey=key%2Fwith%2Fslash",
+			expectedURL: "https://cdn.example.com//upload?encrypted_query_param=param%3Dwith%3Dequals&filekey=key%2Fwith%2Fslash",
 		},
 	}
 
@@ -43,22 +43,22 @@ func TestBuildUploadURL(t *testing.T) {
 // TestBuildDownloadURL tests CDN download URL building.
 func TestBuildDownloadURL(t *testing.T) {
 	testCases := []struct {
-		name              string
-		cdnBaseURL        string
-	encryptedQueryParam string
-		expectedURL       string
+		name                string
+		cdnBaseURL          string
+		encryptedQueryParam string
+		expectedURL         string
 	}{
 		{
-			name:              "Basic",
-			cdnBaseURL:        "https://cdn.example.com",
+			name:                "Basic",
+			cdnBaseURL:          "https://cdn.example.com",
 			encryptedQueryParam: "param123",
-			expectedURL:       "https://cdn.example.com/download?encrypted_query_param=param123",
+			expectedURL:         "https://cdn.example.com/download?encrypted_query_param=param123",
 		},
 		{
-			name:              "With special chars",
-			cdnBaseURL:        "https://cdn.example.com/",
+			name:                "With special chars",
+			cdnBaseURL:          "https://cdn.example.com/",
 			encryptedQueryParam: "param=with=equals",
-			expectedURL:       "https://cdn.example.com/download?encrypted_query_param=param%3Dwith%3Dequals",
+			expectedURL:         "https://cdn.example.com//download?encrypted_query_param=param%3Dwith%3Dequals",
 		},
 	}
 

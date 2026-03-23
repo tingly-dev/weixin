@@ -13,29 +13,29 @@ import (
 
 // MessageProcessor handles the complete message processing pipeline.
 type MessageProcessor struct {
-	accountID   string
-	baseURL     string
-	cdnBaseURL  string
-	token       string
+	accountID    string
+	baseURL      string
+	cdnBaseURL   string
+	token        string
 	typingTicket string
 
 	// Handlers
-	onAuthCheck  func(accountID, userID string) (authorized bool)
-	onRoute      func(accountID, userID string) (agentID string)
-	onDispatch   func(ctx context.Context, msg *ProcessMessage) error
-	onDownload   func(mediaType, encryptedParam, aesKey, cdnBaseURL string) ([]byte, error)
+	onAuthCheck func(accountID, userID string) (authorized bool)
+	onRoute     func(accountID, userID string) (agentID string)
+	onDispatch  func(ctx context.Context, msg *ProcessMessage) error
+	onDownload  func(mediaType, encryptedParam, aesKey, cdnBaseURL string) ([]byte, error)
 }
 
 // ProcessMessage contains all data needed for message processing.
 type ProcessMessage struct {
-	WeixinMessage  *weixin.WeixinMessage
-	AccountID      string
-	ToUserID       string
-	ContextToken   string
-	FromUserID     string
-	SessionID      string
-	TextBody       string
-	Media          *mediadownload.MediaDownloadOpts
+	WeixinMessage *weixin.WeixinMessage
+	AccountID     string
+	ToUserID      string
+	ContextToken  string
+	FromUserID    string
+	SessionID     string
+	TextBody      string
+	Media         *mediadownload.MediaDownloadOpts
 }
 
 // NewMessageProcessor creates a new message processor.

@@ -11,12 +11,12 @@ import (
 // MediaDownloadOpts contains options for downloading media.
 type MediaDownloadOpts struct {
 	// Paths to downloaded media files (set after download)
-	ImagePath  string
-	VideoPath  string
-	VoicePath  string
-	VoiceMime  string // MIME type for voice (audio/wav or audio/silk)
-	FilePath   string
-	FileMime   string
+	ImagePath string
+	VideoPath string
+	VoicePath string
+	VoiceMime string // MIME type for voice (audio/wav or audio/silk)
+	FilePath  string
+	FileMime  string
 }
 
 // DownloadAndDecryptImage downloads and decrypts an image from CDN.

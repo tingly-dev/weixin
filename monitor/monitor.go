@@ -36,9 +36,9 @@ type Monitor struct {
 	client    *api.Client
 
 	// Event handlers
-	onMessage     func(ctx context.Context, msg *weixin.WeixinMessage) error
-	onError       func(err error)
-	onSession     func(sessionID string) // Called when a new session is detected
+	onMessage func(ctx context.Context, msg *weixin.WeixinMessage) error
+	onError   func(err error)
+	onSession func(sessionID string) // Called when a new session is detected
 
 	// State
 	syncBuf         string
@@ -51,10 +51,10 @@ type Monitor struct {
 // NewMonitor creates a new WeChat monitor.
 func NewMonitor(accountID, baseURL, token string) *Monitor {
 	return &Monitor{
-		accountID:  accountID,
-		baseURL:    baseURL,
-		token:      token,
-		client:     api.NewClient(baseURL, token),
+		accountID:   accountID,
+		baseURL:     baseURL,
+		token:       token,
+		client:      api.NewClient(baseURL, token),
 		nextTimeout: DefaultLongPollTimeout,
 	}
 }
