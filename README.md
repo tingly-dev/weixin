@@ -17,6 +17,15 @@ A WeChat Chat Bot SDK via Official Channel.
 go get github.com/tingly-dev/weixin
 ```
 
+## Example
+
+A complete echo bot example is available in `example/weixin-echo-bot/`:
+
+```bash
+cd example/weixin-echo-bot
+go run main.go
+```
+
 ## Quick Start
 
 ```go
@@ -71,14 +80,6 @@ func main() {
 For detailed architecture and protocol documentation, see:
 - [understand-tencent-weixin-openclaw-weixin](https://github.com/FFengIll/understand-tencent-weixin-openclaw-weixin)
 
-## Example
-
-A complete echo bot example is available in `example/weixin-echo-bot/`:
-
-```bash
-cd example/weixin-echo-bot
-go run main.go
-```
 
 ## License
 
