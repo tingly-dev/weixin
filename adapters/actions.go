@@ -67,6 +67,15 @@ func (a *ActionsAdapter) SendMedia(ctx context.Context, msg *channel.OutboundMes
 	return a.Send(ctx, msg)
 }
 
+// SendStream is not supported by weixin.
+func (a *ActionsAdapter) SendStream(ctx context.Context, msg *channel.OutboundMessage) (*channel.OutboundResult, error) {
+	return nil, &channel.ChannelError{
+		Type:    channel.ErrorNotSupported,
+		Message: "streaming not supported by WeChat ilink protocol",
+		Channel: channel.ChannelIDWeChat,
+	}
+}
+
 // React is not supported by weixin.
 func (a *ActionsAdapter) React(ctx context.Context, reaction *channel.Reaction) (*channel.OutboundResult, error) {
 	return nil, &channel.ChannelError{

@@ -66,6 +66,7 @@ type Capabilities struct {
 	// Other features
 	NativeCommands  bool `json:"nativeCommands"`
 	BlockStreaming  bool `json:"blockStreaming"`
+	Streaming       bool `json:"streaming"`
 	GroupManagement bool `json:"groupManagement"`
 	Effects         bool `json:"effects"`
 }
@@ -122,6 +123,11 @@ type Message struct {
 	// when responding to this message.
 	ContextToken string `json:"contextToken,omitempty"`
 
+	// Streaming
+	// StreamToken is an opaque token for initiating streaming replies.
+	// Set by the adapter for channels that support streaming.
+	StreamToken string `json:"streamToken,omitempty"`
+
 	// Additional context
 	Metadata    map[string]interface{} `json:"metadata,omitempty"`
 	NativeEvent interface{}            `json:"nativeEvent,omitempty"`
@@ -158,6 +164,12 @@ type OutboundMessage struct {
 	// ContextToken should be set from the incoming message's ContextToken
 	// when replying, for channels that require it (e.g., WeChat).
 	ContextToken string `json:"contextToken,omitempty"`
+
+	// Streaming
+	// StreamID identifies an ongoing stream. Empty on first chunk (adapter generates one).
+	// Reuse the returned StreamID for subsequent chunks.
+	StreamID     string `json:"streamId,omitempty"`
+	StreamFinish bool   `json:"streamFinish,omitempty"`
 
 	// Options
 	Silent         bool   `json:"silent,omitempty"`
@@ -259,6 +271,19 @@ type EventHandler interface {
 	// OnEdit is called when a message is edited.
 	OnEdit(ctx context.Context, msg *Message) error
 
+	// OnEvent is called when a protocol lifecycle event occurs.
+	// EventType examples: "enter_chat", "disconnected", "card_click", "session_change"
+	// Payload carries protocol-specific data — the framework does not define its schema.
+	OnEvent(ctx context.Context, event *Event)
+
 	// OnError is called when an error occurs.
 	OnError(ctx context.Context, err error)
+}
+
+// Event represents a protocol lifecycle event from a channel.
+type Event struct {
+	EventType string                 `json:"eventType"`
+	AccountID string                 `json:"accountId,omitempty"`
+	Timestamp time.Time              `json:"timestamp"`
+	Payload   map[string]interface{} `json:"payload,omitempty"`
 }

@@ -28,6 +28,12 @@ type ActionsAdapter interface {
 	// Send sends a text message.
 	Send(ctx context.Context, msg *OutboundMessage) (*OutboundResult, error)
 
+	// SendStream sends a streaming text chunk.
+	// msg.StreamID identifies the ongoing stream (empty on first chunk, adapter generates).
+	// msg.StreamFinish = true marks the final chunk.
+	// Channels that don't support streaming return an ErrorNotSupported error.
+	SendStream(ctx context.Context, msg *OutboundMessage) (*OutboundResult, error)
+
 	// SendMedia sends a media message.
 	SendMedia(ctx context.Context, msg *OutboundMessage) (*OutboundResult, error)
 
