@@ -5,7 +5,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
-	"fmt"
+	"log"
 
 	"github.com/tingly-dev/weixin"
 )
@@ -20,7 +20,7 @@ func generateClientID() string {
 // SendMessage sends a message to weixin.
 func (c *Client) SendMessage(ctx context.Context, toUserID, contextToken string, items []weixin.MessageItem) error {
 	if contextToken == "" {
-		return fmt.Errorf("contextToken is required")
+		log.Printf("[weixin] contextToken missing for message to %s, sending without context", toUserID)
 	}
 	req := &SendMessageRequest{
 		Msg: &WeixinMessageWrapper{

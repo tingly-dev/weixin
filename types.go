@@ -93,13 +93,15 @@ type TextItem struct {
 
 // ImageItem represents an image with CDN reference.
 type ImageItem struct {
-	Media      *CDNMedia `json:"media,omitempty"`
-	ThumbMedia *CDNMedia `json:"thumb_media,omitempty"`
-	AESKey     string    `json:"aeskey,omitempty"`
-	URL        string    `json:"url,omitempty"`
-	MidSize    int64     `json:"mid_size,omitempty"`
-	ThumbSize  int64     `json:"thumb_size,omitempty"`
-	HDSize     int64     `json:"hd_size,omitempty"`
+	Media       *CDNMedia `json:"media,omitempty"`
+	ThumbMedia  *CDNMedia `json:"thumb_media,omitempty"`
+	AESKey      string    `json:"aeskey,omitempty"`
+	URL         string    `json:"url,omitempty"`
+	MidSize     int64     `json:"mid_size,omitempty"`
+	ThumbSize   int64     `json:"thumb_size,omitempty"`
+	ThumbHeight int       `json:"thumb_height,omitempty"`
+	ThumbWidth  int       `json:"thumb_width,omitempty"`
+	HDSize      int64     `json:"hd_size,omitempty"`
 }
 
 // VoiceItem represents a voice message.
@@ -133,4 +135,5 @@ type CDNMedia struct {
 	EncryptQueryParam string `json:"encrypt_query_param,omitempty"`
 	AESKey            string `json:"aes_key,omitempty"`
 	EncryptType       int    `json:"encrypt_type,omitempty"` // 0=only fileid, 1=包含缩略图/中图等信息
+	FullURL           string `json:"full_url,omitempty"`     // Server-returned complete download URL
 }

@@ -56,6 +56,7 @@ type GetUploadURLRequest struct {
 type GetUploadURLResponse struct {
 	UploadParam      string `json:"upload_param,omitempty"`
 	ThumbUploadParam string `json:"thumb_upload_param,omitempty"`
+	UploadFullURL    string `json:"upload_full_url,omitempty"`
 }
 
 // GetConfigRequest represents the getConfig request.

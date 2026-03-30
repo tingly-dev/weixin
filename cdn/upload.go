@@ -20,16 +20,22 @@ const (
 )
 
 // UploadBufferToCdn uploads encrypted buffer to WeChat CDN with retry logic.
+// When uploadFullURL is non-empty, it is used directly instead of client-side URL construction.
 // Returns the download encrypted_query_param from the CDN response.
-func UploadBufferToCdn(ctx context.Context, plaintext []byte, uploadParam, filekey, cdnBaseURL string, aesKey []byte) (string, error) {
+func UploadBufferToCdn(ctx context.Context, plaintext []byte, uploadParam, filekey, cdnBaseURL string, aesKey []byte, uploadFullURL ...string) (string, error) {
 	// Encrypt plaintext
 	ciphertext, err := crypto.EncryptAesEcb(plaintext, aesKey)
 	if err != nil {
 		return "", fmt.Errorf("encrypt: %w", err)
 	}
 
-	// Build upload URL
-	uploadURL := BuildUploadURL(cdnBaseURL, uploadParam, filekey)
+	// Build upload URL: prefer server-returned full URL
+	var uploadURL string
+	if len(uploadFullURL) > 0 && uploadFullURL[0] != "" {
+		uploadURL = uploadFullURL[0]
+	} else {
+		uploadURL = BuildUploadURL(cdnBaseURL, uploadParam, filekey)
+	}
 
 	var lastError error
 	for attempt := 1; attempt <= MaxUploadRetries; attempt++ {

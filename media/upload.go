@@ -120,12 +120,12 @@ func UploadMediaToCDN(ctx context.Context, filePath, toUserID, baseURL, cdnBaseU
 		return nil, fmt.Errorf("get upload URL: %w", err)
 	}
 
-	if uploadResp.UploadParam == "" {
-		return nil, fmt.Errorf("getUploadURL returned empty upload_param")
+	if uploadResp.UploadParam == "" && uploadResp.UploadFullURL == "" {
+		return nil, fmt.Errorf("getUploadURL returned empty upload_param and upload_full_url")
 	}
 
-	// Upload to CDN
-	downloadParam, err := cdn.UploadBufferToCdn(ctx, plaintext, uploadResp.UploadParam, filekeyHex, cdnBaseURL, aesKey)
+	// Upload to CDN (prefer server-returned full URL)
+	downloadParam, err := cdn.UploadBufferToCdn(ctx, plaintext, uploadResp.UploadParam, filekeyHex, cdnBaseURL, aesKey, uploadResp.UploadFullURL)
 	if err != nil {
 		return nil, fmt.Errorf("upload to CDN: %w", err)
 	}

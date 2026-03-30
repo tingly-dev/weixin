@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"time"
 )
 
@@ -20,6 +21,11 @@ const (
 	DefaultAPITimeout = 15 * time.Second
 	// DefaultConfigTimeout is the default timeout for config requests.
 	DefaultConfigTimeout = 10 * time.Second
+	// SDKVersion is the version reported in iLink-App-ClientVersion header.
+	// Encoded as 0x00MMNNPP uint32.
+	SDKVersion = "0.1.0"
+	// ilinkAppID is the app ID sent in iLink-App-Id header.
+	ilinkAppID = "bot"
 )
 
 // Client is the WeChat API client.
@@ -56,9 +62,11 @@ func (c *Client) buildHeaders(body []byte) map[string]string {
 	uin := base64.StdEncoding.EncodeToString(uinBytes)
 
 	headers := map[string]string{
-		"Content-Type":      "application/json",
-		"AuthorizationType": "ilink_bot_token",
-		"X-WECHAT-UIN":      uin,
+		"Content-Type":            "application/json",
+		"AuthorizationType":       "ilink_bot_token",
+		"X-WECHAT-UIN":            uin,
+		"iLink-App-Id":            ilinkAppID,
+		"iLink-App-ClientVersion": strconv.FormatUint(uint64(buildClientVersion(SDKVersion)), 10),
 	}
 
 	if c.botToken != "" {
@@ -66,6 +74,16 @@ func (c *Client) buildHeaders(body []byte) map[string]string {
 	}
 
 	return headers
+}
+
+// buildClientVersion encodes a version string "M.N.P" as uint32 0x00MMNNPP.
+func buildClientVersion(version string) uint32 {
+	major, minor, patch := uint32(0), uint32(0), uint32(0)
+	n, _ := fmt.Sscanf(version, "%d.%d.%d", &major, &minor, &patch)
+	if n < 1 {
+		return 0
+	}
+	return (major << 16) | (minor << 8) | patch
 }
 
 // doRequest performs an HTTP POST request.

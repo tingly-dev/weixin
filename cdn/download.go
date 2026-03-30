@@ -13,18 +13,19 @@ import (
 )
 
 // DownloadAndDecryptBuffer downloads and decrypts media from WeChat CDN.
+// When fullURL is non-empty, it is used directly instead of client-side URL construction.
 // aesKeyBase64 can be either:
 //   - base64(raw 16 bytes) - for images
 //   - base64(hex string of 16 bytes) - for file/voice/video
-func DownloadAndDecryptBuffer(ctx context.Context, encryptedQueryParam, aesKeyBase64, cdnBaseURL string) ([]byte, error) {
+func DownloadAndDecryptBuffer(ctx context.Context, encryptedQueryParam, aesKeyBase64, cdnBaseURL string, fullURL ...string) ([]byte, error) {
 	// Parse AES key
 	aesKey, err := parseAesKey(aesKeyBase64)
 	if err != nil {
 		return nil, fmt.Errorf("parse AES key: %w", err)
 	}
 
-	// Build download URL
-	downloadURL := BuildDownloadURL(encryptedQueryParam, cdnBaseURL)
+	// Build download URL: prefer server-returned full URL
+	downloadURL := resolveDownloadURL(cdnBaseURL, encryptedQueryParam, fullURL)
 
 	// Download encrypted data
 	encrypted, err := fetchCdnBytes(ctx, downloadURL)
@@ -42,9 +43,17 @@ func DownloadAndDecryptBuffer(ctx context.Context, encryptedQueryParam, aesKeyBa
 }
 
 // DownloadPlainBuffer downloads plain (unencrypted) bytes from CDN.
-func DownloadPlainBuffer(ctx context.Context, encryptedQueryParam, cdnBaseURL string) ([]byte, error) {
-	downloadURL := BuildDownloadURL(encryptedQueryParam, cdnBaseURL)
+func DownloadPlainBuffer(ctx context.Context, encryptedQueryParam, cdnBaseURL string, fullURL ...string) ([]byte, error) {
+	downloadURL := resolveDownloadURL(cdnBaseURL, encryptedQueryParam, fullURL)
 	return fetchCdnBytes(ctx, downloadURL)
+}
+
+// resolveDownloadURL returns the download URL, preferring server-returned full URL.
+func resolveDownloadURL(cdnBaseURL, encryptedQueryParam string, fullURL []string) string {
+	if len(fullURL) > 0 && fullURL[0] != "" {
+		return fullURL[0]
+	}
+	return BuildDownloadURL(encryptedQueryParam, cdnBaseURL)
 }
 
 // fetchCdnBytes downloads raw bytes from CDN.

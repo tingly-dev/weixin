@@ -64,7 +64,7 @@ func DownloadMediaFromItem(ctx context.Context, item *weixin.MessageItem, cdnBas
 
 // downloadImage downloads and decrypts an image item.
 func downloadImage(ctx context.Context, img *weixin.ImageItem, cdnBaseURL, destDir string, result *InboundMediaOpts) error {
-	if img == nil || img.Media == nil || img.Media.EncryptQueryParam == "" {
+	if img == nil || img.Media == nil || (img.Media.EncryptQueryParam == "" && img.Media.FullURL == "") {
 		return nil // No media to download
 	}
 
@@ -84,10 +84,10 @@ func downloadImage(ctx context.Context, img *weixin.ImageItem, cdnBaseURL, destD
 
 	if aesKeyBase64 != "" {
 		// Download and decrypt
-		plaintext, err = cdn.DownloadAndDecryptBuffer(ctx, img.Media.EncryptQueryParam, aesKeyBase64, cdnBaseURL)
+		plaintext, err = cdn.DownloadAndDecryptBuffer(ctx, img.Media.EncryptQueryParam, aesKeyBase64, cdnBaseURL, img.Media.FullURL)
 	} else {
 		// Download plain (unencrypted)
-		plaintext, err = cdn.DownloadPlainBuffer(ctx, img.Media.EncryptQueryParam, cdnBaseURL)
+		plaintext, err = cdn.DownloadPlainBuffer(ctx, img.Media.EncryptQueryParam, cdnBaseURL, img.Media.FullURL)
 	}
 
 	if err != nil {
@@ -106,12 +106,12 @@ func downloadImage(ctx context.Context, img *weixin.ImageItem, cdnBaseURL, destD
 
 // downloadVoice downloads and decrypts a voice item.
 func downloadVoice(ctx context.Context, voice *weixin.VoiceItem, cdnBaseURL, destDir string, result *InboundMediaOpts) error {
-	if voice == nil || voice.Media == nil || voice.Media.EncryptQueryParam == "" || voice.Media.AESKey == "" {
+	if voice == nil || voice.Media == nil || (voice.Media.EncryptQueryParam == "" && voice.Media.FullURL == "") || voice.Media.AESKey == "" {
 		return nil
 	}
 
 	// Download and decrypt
-	plaintext, err := cdn.DownloadAndDecryptBuffer(ctx, voice.Media.EncryptQueryParam, voice.Media.AESKey, cdnBaseURL)
+	plaintext, err := cdn.DownloadAndDecryptBuffer(ctx, voice.Media.EncryptQueryParam, voice.Media.AESKey, cdnBaseURL, voice.Media.FullURL)
 	if err != nil {
 		return err
 	}
@@ -130,12 +130,12 @@ func downloadVoice(ctx context.Context, voice *weixin.VoiceItem, cdnBaseURL, des
 
 // downloadFile downloads and decrypts a file item.
 func downloadFile(ctx context.Context, fileItem *weixin.FileItem, cdnBaseURL, destDir string, result *InboundMediaOpts) error {
-	if fileItem == nil || fileItem.Media == nil || fileItem.Media.EncryptQueryParam == "" || fileItem.Media.AESKey == "" {
+	if fileItem == nil || fileItem.Media == nil || (fileItem.Media.EncryptQueryParam == "" && fileItem.Media.FullURL == "") || fileItem.Media.AESKey == "" {
 		return nil
 	}
 
 	// Download and decrypt
-	plaintext, err := cdn.DownloadAndDecryptBuffer(ctx, fileItem.Media.EncryptQueryParam, fileItem.Media.AESKey, cdnBaseURL)
+	plaintext, err := cdn.DownloadAndDecryptBuffer(ctx, fileItem.Media.EncryptQueryParam, fileItem.Media.AESKey, cdnBaseURL, fileItem.Media.FullURL)
 	if err != nil {
 		return err
 	}
@@ -158,12 +158,12 @@ func downloadFile(ctx context.Context, fileItem *weixin.FileItem, cdnBaseURL, de
 
 // downloadVideo downloads and decrypts a video item.
 func downloadVideo(ctx context.Context, video *weixin.VideoItem, cdnBaseURL, destDir string, result *InboundMediaOpts) error {
-	if video == nil || video.Media == nil || video.Media.EncryptQueryParam == "" || video.Media.AESKey == "" {
+	if video == nil || video.Media == nil || (video.Media.EncryptQueryParam == "" && video.Media.FullURL == "") || video.Media.AESKey == "" {
 		return nil
 	}
 
 	// Download and decrypt
-	plaintext, err := cdn.DownloadAndDecryptBuffer(ctx, video.Media.EncryptQueryParam, video.Media.AESKey, cdnBaseURL)
+	plaintext, err := cdn.DownloadAndDecryptBuffer(ctx, video.Media.EncryptQueryParam, video.Media.AESKey, cdnBaseURL, video.Media.FullURL)
 	if err != nil {
 		return err
 	}
