@@ -23,7 +23,7 @@ const (
 	DefaultConfigTimeout = 10 * time.Second
 	// SDKVersion is the version reported in iLink-App-ClientVersion header.
 	// Encoded as 0x00MMNNPP uint32.
-	SDKVersion = "0.1.0"
+	SDKVersion = "2.1.1"
 	// ilinkAppID is the app ID sent in iLink-App-Id header.
 	ilinkAppID = "bot"
 )
@@ -79,7 +79,10 @@ func (c *Client) buildHeaders(body []byte) map[string]string {
 // buildClientVersion encodes a version string "M.N.P" as uint32 0x00MMNNPP.
 func buildClientVersion(version string) uint32 {
 	major, minor, patch := uint32(0), uint32(0), uint32(0)
-	n, _ := fmt.Sscanf(version, "%d.%d.%d", &major, &minor, &patch)
+	n, err := fmt.Sscanf(version, "%d.%d.%d", &major, &minor, &patch)
+	if err != nil || n < 3 {
+		fmt.Printf("[weixin] WARNING: invalid SDK version %q (parsed %d/3 components): %v\n", version, n, err)
+	}
 	if n < 1 {
 		return 0
 	}

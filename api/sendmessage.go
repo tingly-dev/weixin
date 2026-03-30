@@ -19,6 +19,8 @@ func generateClientID() string {
 
 // SendMessage sends a message to weixin.
 func (c *Client) SendMessage(ctx context.Context, toUserID, contextToken string, items []weixin.MessageItem) error {
+	// contextToken is optional for block-streaming: the first chunk may lack it,
+	// and subsequent chunks receive a reply context_token from the server.
 	if contextToken == "" {
 		log.Printf("[weixin] contextToken missing for message to %s, sending without context", toUserID)
 	}
