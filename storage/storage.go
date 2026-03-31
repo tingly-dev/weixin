@@ -9,17 +9,17 @@ import (
 // GetStateDir returns the state directory for storing WeChat channel data.
 func GetStateDir() (string, error) {
 	// Check for custom state directory from environment
-	if customDir := os.Getenv("OPENCLAW_STATE_DIR"); customDir != "" {
+	if customDir := os.Getenv("WEIXIN_STATE_DIR"); customDir != "" {
 		return customDir, nil
 	}
 
-	// Default to ~/.agentchannel/state
+	// Default to ~/.weixin/state
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		return "", err
 	}
 
-	stateDir := filepath.Join(homeDir, ".agentchannel", "state")
+	stateDir := filepath.Join(homeDir, ".weixin", "state")
 	return stateDir, nil
 }
 

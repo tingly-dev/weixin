@@ -6,16 +6,16 @@ import (
 	"log"
 	"sync"
 
-	"github.com/tingly-dev/weixin/channel"
+	"github.com/tingly-dev/weixin/types"
 )
 
-// GatewayAdapter implements channel.GatewayAdapter for WeCom AI Bot.
+// GatewayAdapter implements GatewayAdapter for WeCom AI Bot.
 // It manages the WebSocket connection lifecycle per account.
 type GatewayAdapter struct {
 	mu       sync.Mutex
 	clients  map[string]*Client // accountID -> Client
 	running  map[string]bool
-	handlers map[string]channel.EventHandler
+	handlers map[string]types.EventHandler
 	logger   *log.Logger
 }
 
@@ -24,7 +24,7 @@ func NewGatewayAdapter(logger *log.Logger) *GatewayAdapter {
 	return &GatewayAdapter{
 		clients:  make(map[string]*Client),
 		running:  make(map[string]bool),
-		handlers: make(map[string]channel.EventHandler),
+		handlers: make(map[string]types.EventHandler),
 		logger:   logger,
 	}
 }
@@ -105,7 +105,7 @@ func (g *GatewayAdapter) SetAccountConfig(accountID string, cfg ClientConfig) {
 }
 
 // SetEventHandler sets the event handler for a specific account.
-func (g *GatewayAdapter) SetEventHandler(accountID string, handler channel.EventHandler) {
+func (g *GatewayAdapter) SetEventHandler(accountID string, handler types.EventHandler) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 

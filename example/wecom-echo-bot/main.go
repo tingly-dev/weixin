@@ -19,7 +19,7 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/tingly-dev/weixin/channel"
+	"github.com/tingly-dev/weixin"
 	"github.com/tingly-dev/weixin/wecom"
 )
 
@@ -82,7 +82,7 @@ type echoHandler struct {
 }
 
 // OnMessage handles incoming messages and echoes them back.
-func (h *echoHandler) OnMessage(ctx context.Context, msg *channel.Message) error {
+func (h *echoHandler) OnMessage(ctx context.Context, msg *weixin.Message) error {
 	log.Printf("Message from %s: %q (attachments: %d)\n",
 		msg.SenderID, msg.Text, len(msg.Attachments))
 
@@ -106,7 +106,7 @@ func (h *echoHandler) OnMessage(ctx context.Context, msg *channel.Message) error
 		return nil
 	}
 
-	result, err := h.actions.Send(ctx, &channel.OutboundMessage{
+	result, err := h.actions.Send(ctx, &weixin.OutboundMessage{
 		AccountID:    h.accountID,
 		To:           msg.To,
 		Text:         replyText,
@@ -124,17 +124,17 @@ func (h *echoHandler) OnMessage(ctx context.Context, msg *channel.Message) error
 }
 
 // OnReaction handles reactions (not used).
-func (h *echoHandler) OnReaction(ctx context.Context, reaction *channel.Reaction) error {
+func (h *echoHandler) OnReaction(ctx context.Context, reaction *weixin.Reaction) error {
 	return nil
 }
 
 // OnEdit handles message edits (not supported by WeCom).
-func (h *echoHandler) OnEdit(ctx context.Context, msg *channel.Message) error {
+func (h *echoHandler) OnEdit(ctx context.Context, msg *weixin.Message) error {
 	return nil
 }
 
 // OnEvent handles protocol events (enter_chat, card_click, etc.).
-func (h *echoHandler) OnEvent(ctx context.Context, event *channel.Event) {
+func (h *echoHandler) OnEvent(ctx context.Context, event *weixin.Event) {
 	log.Printf("Event: %s (payload: %v)\n", event.EventType, event.Payload)
 }
 

@@ -1,38 +1,28 @@
-// Package adapters provides adapter implementations for the WeChat channel.
-package adapters
+package plugin
 
-import (
-	"github.com/tingly-dev/weixin"
-	"github.com/tingly-dev/weixin/channel"
-)
+import "github.com/tingly-dev/weixin"
 
-// ConfigAdapter handles account configuration for weixin.
-type ConfigAdapter struct {
-	plugin weixin.PluginInterface
-}
-
-// NewConfigAdapter creates a new config adapter.
-func NewConfigAdapter(plugin weixin.PluginInterface) *ConfigAdapter {
-	return &ConfigAdapter{plugin: plugin}
+// configAdapter implements ConfigAdapter using the plugin's account manager.
+type configAdapter struct {
+	plugin *Plugin
 }
 
 // ListAccountIDs returns all configured WeChat account IDs.
-func (a *ConfigAdapter) ListAccountIDs() ([]string, error) {
+func (a *configAdapter) ListAccountIDs() ([]string, error) {
 	return a.plugin.Accounts().ListIDs()
 }
 
 // ResolveAccount resolves a WeChat account by ID.
-func (a *ConfigAdapter) ResolveAccount(accountID string) (*channel.Account, error) {
+func (a *configAdapter) ResolveAccount(accountID string) (*weixin.Account, error) {
 	wcAccount, err := a.plugin.Accounts().Get(accountID)
 	if err != nil {
-		return nil, &channel.ChannelError{
-			Type:    channel.ErrorAccountNotFound,
+		return nil, &Error{
+			Type:    ErrorAccountNotFound,
 			Message: "account not found: " + accountID,
-			Channel: channel.ChannelIDWeChat,
 		}
 	}
 
-	return &channel.Account{
+	return &weixin.Account{
 		ID:         wcAccount.ID,
 		Name:       wcAccount.Name,
 		Enabled:    wcAccount.Enabled,
@@ -46,23 +36,22 @@ func (a *ConfigAdapter) ResolveAccount(accountID string) (*channel.Account, erro
 }
 
 // DefaultAccount returns the default WeChat account ID.
-func (a *ConfigAdapter) DefaultAccount() (string, error) {
+func (a *configAdapter) DefaultAccount() (string, error) {
 	ids, err := a.plugin.Accounts().ListIDs()
 	if err != nil {
 		return "", err
 	}
 	if len(ids) == 0 {
-		return "", &channel.ChannelError{
-			Type:    channel.ErrorAccountNotFound,
+		return "", &Error{
+			Type:    ErrorAccountNotFound,
 			Message: "no WeChat accounts configured",
-			Channel: channel.ChannelIDWeChat,
 		}
 	}
 	return ids[0], nil
 }
 
 // IsEnabled checks if a WeChat account is enabled.
-func (a *ConfigAdapter) IsEnabled(accountID string) (bool, error) {
+func (a *configAdapter) IsEnabled(accountID string) (bool, error) {
 	account, err := a.plugin.Accounts().Get(accountID)
 	if err != nil {
 		return false, err
@@ -71,7 +60,7 @@ func (a *ConfigAdapter) IsEnabled(accountID string) (bool, error) {
 }
 
 // IsConfigured checks if a WeChat account is configured.
-func (a *ConfigAdapter) IsConfigured(accountID string) (bool, error) {
+func (a *configAdapter) IsConfigured(accountID string) (bool, error) {
 	account, err := a.plugin.Accounts().Get(accountID)
 	if err != nil {
 		return false, err

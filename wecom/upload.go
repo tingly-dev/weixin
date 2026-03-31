@@ -8,10 +8,10 @@ import (
 	"math"
 	"sync"
 
-	"github.com/tingly-dev/weixin/channel"
+	"github.com/tingly-dev/weixin"
 )
 
-// UploadAdapter implements channel.UploadAdapter for WeCom AI Bot.
+// UploadAdapter implements UploadAdapter for WeCom AI Bot.
 // Media is uploaded via a 3-step chunked WebSocket protocol.
 type UploadAdapter struct {
 	gateway *GatewayAdapter
@@ -24,10 +24,10 @@ func NewUploadAdapter(gateway *GatewayAdapter) *UploadAdapter {
 
 // GetUploadURL returns a placeholder — WeCom doesn't use pre-signed URLs.
 // Uploads go directly over the WebSocket connection.
-func (u *UploadAdapter) GetUploadURL(ctx context.Context, req *channel.UploadURLRequest) (*channel.UploadURLResult, error) {
+func (u *UploadAdapter) GetUploadURL(ctx context.Context, req *weixin.UploadURLRequest) (*weixin.UploadURLResult, error) {
 	// WeCom uses WS-based chunked upload, not pre-signed URLs.
 	// This method returns the upload mechanism info via the result.
-	return &channel.UploadURLResult{
+	return &weixin.UploadURLResult{
 		UploadParam: "wecom_ws_upload",
 		FileKey:     req.FileKey,
 	}, nil
@@ -36,7 +36,7 @@ func (u *UploadAdapter) GetUploadURL(ctx context.Context, req *channel.UploadURL
 // UploadMedia uploads a media file via the 3-step WS chunked protocol.
 // The file data is provided via MediaData in the request.
 // Returns the media_id which is valid for 3 days.
-func (u *UploadAdapter) UploadMedia(ctx context.Context, req *channel.MediaUploadRequest) (*channel.MediaUploadResult, error) {
+func (u *UploadAdapter) UploadMedia(ctx context.Context, req *weixin.MediaUploadRequest) (*weixin.MediaUploadResult, error) {
 	client := u.gateway.GetClient("")
 	if client == nil || !client.IsConnected() {
 		return nil, fmt.Errorf("wecom client not connected")
@@ -94,7 +94,7 @@ func (u *UploadAdapter) UploadMedia(ctx context.Context, req *channel.MediaUploa
 		return nil, fmt.Errorf("upload finish: %w", err)
 	}
 
-	return &channel.MediaUploadResult{
+	return &weixin.MediaUploadResult{
 		FileSize:     totalSize,
 		EncryptQuery: finishResult.MediaID, // store media_id in EncryptQuery for downstream use
 	}, nil

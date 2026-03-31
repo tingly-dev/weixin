@@ -1,53 +1,20 @@
-// Package channel provides core types and interfaces for messaging channels.
-//
-// This package defines the fundamental abstractions used throughout
-// AgentChannel, based on the OpenClaw channel protocol.
-package channel
+// Package types provides shared types for the WeChat/WeCom SDK.
+package types
 
 import (
 	"context"
 	"time"
 )
 
-// ChannelID is a unique identifier for a channel type.
-type ChannelID string
-
-// Common channel IDs
-const (
-	ChannelIDTelegram    ChannelID = "telegram"
-	ChannelIDDiscord     ChannelID = "discord"
-	ChannelIDSlack       ChannelID = "slack"
-	ChannelIDSignal      ChannelID = "signal"
-	ChannelIDWhatsApp    ChannelID = "whatsapp"
-	ChannelIDiMessage    ChannelID = "imessage"
-	ChannelIDBlueBubbles ChannelID = "bluebubbles"
-	ChannelIDWeChat      ChannelID = "wechat"
-	ChannelIDFeishu      ChannelID = "feishu"
-	ChannelIDLine        ChannelID = "line"
-)
-
 // ChatType represents the type of conversation.
 type ChatType string
 
 const (
-	ChatTypeDirect  ChatType = "direct"
-	ChatTypeGroup   ChatType = "group"
-	ChatTypeChannel ChatType = "channel"
+	ChatTypeDirect ChatType = "direct"
+	ChatTypeGroup  ChatType = "group"
 )
 
-// MessageAction represents a type of message action.
-type MessageAction string
-
-const (
-	ActionSend      MessageAction = "send"
-	ActionSendMedia MessageAction = "send_media"
-	ActionReact     MessageAction = "react"
-	ActionEdit      MessageAction = "edit"
-	ActionUnsend    MessageAction = "unsend"
-	ActionSendPoll  MessageAction = "send_poll"
-)
-
-// Capabilities describes what a channel supports.
+// Capabilities describes what a platform supports.
 type Capabilities struct {
 	// ChatTypes is the list of supported conversation types.
 	ChatTypes []ChatType `json:"chatTypes"`
@@ -71,29 +38,10 @@ type Capabilities struct {
 	Effects         bool `json:"effects"`
 }
 
-// SupportsAction checks if the channel supports a specific action.
-func (c *Capabilities) SupportsAction(action MessageAction) bool {
-	switch action {
-	case ActionSend, ActionSendMedia:
-		return c.Text || c.Media
-	case ActionReact:
-		return c.Reactions
-	case ActionEdit:
-		return c.Edit
-	case ActionUnsend:
-		return c.Unsend
-	case ActionSendPoll:
-		return c.Polls
-	default:
-		return false
-	}
-}
-
-// Message represents an incoming message from a channel.
+// Message represents an incoming message.
 type Message struct {
 	// Metadata
 	MessageID string    `json:"messageId"`
-	ChannelID ChannelID `json:"channel"`
 	AccountID string    `json:"accountId,omitempty"`
 	ChatType  ChatType  `json:"chatType"`
 	Timestamp time.Time `json:"timestamp"`
@@ -118,14 +66,14 @@ type Message struct {
 	ParentID  string `json:"parentId,omitempty"`
 
 	// Session Context
-	// ContextToken is used by some channels (e.g., WeChat) to maintain
+	// ContextToken is used by some platforms (e.g., WeChat) to maintain
 	// conversation context when sending replies. Must be passed back
 	// when responding to this message.
 	ContextToken string `json:"contextToken,omitempty"`
 
 	// Streaming
 	// StreamToken is an opaque token for initiating streaming replies.
-	// Set by the adapter for channels that support streaming.
+	// Set by the adapter for platforms that support streaming.
 	StreamToken string `json:"streamToken,omitempty"`
 
 	// Additional context
@@ -142,12 +90,11 @@ type Attachment struct {
 	ContentType string `json:"contentType,omitempty"`
 }
 
-// OutboundMessage represents a message to be sent to a channel.
+// OutboundMessage represents a message to be sent.
 type OutboundMessage struct {
 	// Target
-	ChannelID ChannelID `json:"channelId"`
-	AccountID string    `json:"accountId,omitempty"`
-	To        string    `json:"to"`
+	AccountID string `json:"accountId,omitempty"`
+	To        string `json:"to"`
 
 	// Content
 	Text        string `json:"text"`
@@ -162,7 +109,7 @@ type OutboundMessage struct {
 
 	// Session Context
 	// ContextToken should be set from the incoming message's ContextToken
-	// when replying, for channels that require it (e.g., WeChat).
+	// when replying, for platforms that require it (e.g., WeChat).
 	ContextToken string `json:"contextToken,omitempty"`
 
 	// Streaming
@@ -193,7 +140,7 @@ type OutboundResult struct {
 	ChannelThreadID  string `json:"channelThreadId,omitempty"`
 }
 
-// Account represents a configured channel account.
+// Account represents a configured account.
 type Account struct {
 	ID         string            `json:"id"`
 	Name       string            `json:"name,omitempty"`
@@ -214,20 +161,7 @@ type AccountStatus struct {
 	RestartPending  bool      `json:"restartPending"`
 }
 
-// MessageContext provides context for message handlers.
-type MessageContext struct {
-	// Message details
-	Message *Message
-
-	// Routing information
-	SessionKey string `json:"sessionKey"`
-	AgentID    string `json:"agentId,omitempty"`
-
-	// Additional context
-	Metadata map[string]interface{} `json:"metadata,omitempty"`
-}
-
-// DirectoryEntry represents an entry in the channel directory.
+// DirectoryEntry represents an entry in the directory.
 type DirectoryEntry struct {
 	Kind      DirectoryEntryKind `json:"kind"`
 	ID        string             `json:"id"`
@@ -241,9 +175,8 @@ type DirectoryEntry struct {
 type DirectoryEntryKind string
 
 const (
-	DirectoryEntryUser    DirectoryEntryKind = "user"
-	DirectoryEntryGroup   DirectoryEntryKind = "group"
-	DirectoryEntryChannel DirectoryEntryKind = "channel"
+	DirectoryEntryUser  DirectoryEntryKind = "user"
+	DirectoryEntryGroup DirectoryEntryKind = "group"
 )
 
 // Reaction represents a message reaction.
@@ -252,15 +185,7 @@ type Reaction struct {
 	MessageID string `json:"messageId"`
 }
 
-// Poll represents a poll message.
-type Poll struct {
-	Question       string   `json:"question"`
-	Options        []string `json:"options"`
-	IsAnonymous    bool     `json:"isAnonymous"`
-	MultipleChoice bool     `json:"multipleChoice"`
-}
-
-// EventHandler handles events from a channel.
+// EventHandler handles events.
 type EventHandler interface {
 	// OnMessage is called when a new message is received.
 	OnMessage(ctx context.Context, msg *Message) error
@@ -280,7 +205,7 @@ type EventHandler interface {
 	OnError(ctx context.Context, err error)
 }
 
-// Event represents a protocol lifecycle event from a channel.
+// Event represents a protocol lifecycle event.
 type Event struct {
 	EventType string                 `json:"eventType"`
 	AccountID string                 `json:"accountId,omitempty"`

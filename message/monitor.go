@@ -1,5 +1,5 @@
 // Package monitor provides long-poll monitoring for WeChat messages.
-package monitor
+package message
 
 import (
 	"context"
@@ -8,9 +8,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/tingly-dev/weixin"
 	"github.com/tingly-dev/weixin/api"
-	"github.com/tingly-dev/weixin/sessionguard"
+	"github.com/tingly-dev/weixin/message/session"
 	"github.com/tingly-dev/weixin/storage"
 )
 
@@ -36,7 +35,7 @@ type Monitor struct {
 	client    *api.Client
 
 	// Event handlers
-	onMessage func(ctx context.Context, msg *weixin.WeixinMessage) error
+	onMessage func(ctx context.Context, msg *api.WeixinMessage) error
 	onError   func(err error)
 	onSession func(sessionID string) // Called when a new session is detected
 
@@ -60,7 +59,7 @@ func NewMonitor(accountID, baseURL, token string) *Monitor {
 }
 
 // SetOnMessage sets the handler for incoming messages.
-func (m *Monitor) SetOnMessage(handler func(ctx context.Context, msg *weixin.WeixinMessage) error) {
+func (m *Monitor) SetOnMessage(handler func(ctx context.Context, msg *api.WeixinMessage) error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.onMessage = handler
@@ -130,8 +129,8 @@ func (m *Monitor) monitorLoop(ctx context.Context) {
 		}
 
 		// Check for session pause
-		if sessionguard.IsSessionPaused(m.accountID) {
-			remaining := sessionguard.GetRemainingPauseMs(m.accountID)
+		if session.IsSessionPaused(m.accountID) {
+			remaining := session.GetRemainingPauseMs(m.accountID)
 			log.Printf("[weixin] session paused for %v, waiting...", remaining)
 
 			select {
@@ -184,14 +183,14 @@ func (m *Monitor) poll(ctx context.Context) (*api.GetUpdatesResponse, error) {
 }
 
 // processMessage handles a single incoming message.
-func (m *Monitor) processMessage(ctx context.Context, msg *weixin.WeixinMessage) error {
+func (m *Monitor) processMessage(ctx context.Context, msg *api.WeixinMessage) error {
 	m.mu.RLock()
 	handler := m.onMessage
 	sessionHandler := m.onSession
 	m.mu.RUnlock()
 
 	// Only process USER messages (ignore BOT messages)
-	if msg.MessageType != weixin.MessageTypeUser {
+	if msg.MessageType != api.MessageTypeUser {
 		return nil
 	}
 
@@ -225,7 +224,7 @@ func (m *Monitor) handleError(err error) {
 
 	// Check for session expiration error
 	if isSessionExpiredError(err) {
-		sessionguard.PauseSession(m.accountID)
+		session.PauseSession(m.accountID)
 		m.consecutiveFail = 0
 		return
 	}
@@ -239,7 +238,7 @@ func (m *Monitor) handleError(err error) {
 
 // isSessionExpiredError checks if the error indicates a session expiration.
 func isSessionExpiredError(err error) bool {
-	return err != nil && err.Error() == fmt.Sprintf("ret=%d", sessionguard.SessionExpiredErrCode)
+	return err != nil && err.Error() == fmt.Sprintf("ret=%d", session.SessionExpiredErrCode)
 }
 
 // GetSyncBuf returns the current sync buffer.

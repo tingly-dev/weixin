@@ -22,9 +22,8 @@ import (
 	"time"
 
 	"github.com/tingly-dev/weixin"
-	"github.com/tingly-dev/weixin/adapters"
 	"github.com/tingly-dev/weixin/api"
-	"github.com/tingly-dev/weixin/channel"
+	"github.com/tingly-dev/weixin/plugin"
 )
 
 const (
@@ -44,8 +43,7 @@ func main() {
 		BaseURL: defaultBaseURL,
 		BotType: "3",
 	}
-	plugin := weixin.NewPluginWithDataDir(config, ".")
-	adapters.InitPlugin(plugin)
+	plugin := plugin.NewPluginWithDataDir(config, ".")
 
 	// Resolve or create account
 	accountID, err := ensureAccount(plugin)
@@ -76,7 +74,7 @@ func main() {
 }
 
 // ensureAccount returns an existing account ID or runs QR login to create one.
-func ensureAccount(plugin *weixin.Plugin) (string, error) {
+func ensureAccount(plugin *plugin.Plugin) (string, error) {
 	ids, err := plugin.Accounts().ListIDs()
 	if err != nil {
 		return "", err
@@ -89,7 +87,7 @@ func ensureAccount(plugin *weixin.Plugin) (string, error) {
 }
 
 // qrLogin performs QR code login via the PairingAdapter.
-func qrLogin(plugin *weixin.Plugin) (string, error) {
+func qrLogin(plugin *plugin.Plugin) (string, error) {
 	ctx := context.Background()
 	accountID := "default"
 
@@ -124,7 +122,7 @@ func qrLogin(plugin *weixin.Plugin) (string, error) {
 }
 
 // pollLoop continuously polls for messages and echoes them back.
-func pollLoop(ctx context.Context, plugin *weixin.Plugin, accountID string) {
+func pollLoop(ctx context.Context, plugin *plugin.Plugin, accountID string) {
 	syncBuf := ""
 	backoff := 2 * time.Second
 	const maxBackoff = 30 * time.Second
@@ -136,10 +134,9 @@ func pollLoop(ctx context.Context, plugin *weixin.Plugin, accountID string) {
 		default:
 		}
 
-		result, err := plugin.LongPoll().GetUpdates(ctx, &channel.GetUpdatesRequest{
+		result, err := plugin.LongPoll().GetUpdates(ctx, &weixin.GetUpdatesRequest{
 			AccountID: accountID,
 			SyncBuf:   syncBuf,
-			TimeoutMs: longPollTimeoutMs,
 		})
 		if err != nil {
 			log.Printf("GetUpdates error: %v\n", err)
@@ -175,7 +172,7 @@ func pollLoop(ctx context.Context, plugin *weixin.Plugin, accountID string) {
 }
 
 // handleMessage processes a single message and sends an echo reply.
-func handleMessage(ctx context.Context, plugin *weixin.Plugin, accountID string, msg *channel.Message, idx int) {
+func handleMessage(ctx context.Context, plugin *plugin.Plugin, accountID string, msg *weixin.Message, idx int) {
 	log.Printf("[%s] Message #%d from %s: %q (attachments: %d)\n",
 		accountID, idx, msg.SenderID, msg.Text, len(msg.Attachments))
 
@@ -210,7 +207,7 @@ func handleMessage(ctx context.Context, plugin *weixin.Plugin, accountID string,
 		}
 	}
 
-	result, err := plugin.Actions().Send(ctx, &channel.OutboundMessage{
+	result, err := plugin.Actions().Send(ctx, &weixin.OutboundMessage{
 		AccountID:    accountID,
 		To:           msg.To,
 		Text:         replyText,

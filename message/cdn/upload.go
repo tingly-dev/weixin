@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/tingly-dev/weixin/crypto"
+	"github.com/tingly-dev/weixin/api"
 )
 
 const (
@@ -24,7 +24,7 @@ const (
 // Returns the download encrypted_query_param from the CDN response.
 func UploadBufferToCdn(ctx context.Context, plaintext []byte, uploadParam, filekey, cdnBaseURL string, aesKey []byte, uploadFullURL ...string) (string, error) {
 	// Encrypt plaintext
-	ciphertext, err := crypto.EncryptAesEcb(plaintext, aesKey)
+	ciphertext, err := api.EncryptAesEcb(plaintext, aesKey)
 	if err != nil {
 		return "", fmt.Errorf("encrypt: %w", err)
 	}

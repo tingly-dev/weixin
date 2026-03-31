@@ -1,5 +1,4 @@
-// Package adapters provides adapter implementations for the WeChat channel.
-package adapters
+package plugin
 
 import (
 	"context"
@@ -8,32 +7,30 @@ import (
 
 	"github.com/tingly-dev/weixin"
 	"github.com/tingly-dev/weixin/api"
-	"github.com/tingly-dev/weixin/channel"
-	"github.com/tingly-dev/weixin/contexttoken"
 	"github.com/tingly-dev/weixin/message"
-	"github.com/tingly-dev/weixin/monitor"
-	"github.com/tingly-dev/weixin/sessionguard"
+	"github.com/tingly-dev/weixin/message/contexttoken"
+	"github.com/tingly-dev/weixin/message/session"
 	"github.com/tingly-dev/weixin/storage"
 )
 
-// LongPollAdapter handles long-polling message synchronization for weixin.
-type LongPollAdapter struct {
-	plugin   weixin.PluginInterface
-	monitors map[string]*monitor.Monitor // accountID -> monitor
+// longPollAdapter handles long-polling message synchronization for weixin.
+type longPollAdapter struct {
+	plugin   *Plugin
+	monitors map[string]*message.Monitor // accountID -> monitor
 	mu       sync.RWMutex
 }
 
-// NewLongPollAdapter creates a new long-poll adapter.
-func NewLongPollAdapter(plugin weixin.PluginInterface) *LongPollAdapter {
-	return &LongPollAdapter{
+// newLongPollAdapter creates a new long-poll adapter.
+func newLongPollAdapter(plugin *Plugin) *longPollAdapter {
+	return &longPollAdapter{
 		plugin:   plugin,
-		monitors: make(map[string]*monitor.Monitor),
+		monitors: make(map[string]*message.Monitor),
 	}
 }
 
 // GetUpdates fetches new messages using long-polling.
 // This is a single poll request - for continuous monitoring use StartMonitoring.
-func (a *LongPollAdapter) GetUpdates(ctx context.Context, req *channel.GetUpdatesRequest) (*channel.GetUpdatesResult, error) {
+func (a *longPollAdapter) GetUpdates(ctx context.Context, req *weixin.GetUpdatesRequest) (*weixin.GetUpdatesResult, error) {
 	fmt.Printf("[weixin] LongPollAdapter.GetUpdates called: accountID=%s, syncBuf=%q\n", req.AccountID, req.SyncBuf)
 
 	// Get account
@@ -46,18 +43,17 @@ func (a *LongPollAdapter) GetUpdates(ctx context.Context, req *channel.GetUpdate
 	fmt.Printf("[weixin] Account: Enabled=%v, Configured=%v\n", account.Enabled, account.Configured)
 
 	if !account.Enabled || !account.Configured {
-		return nil, &channel.ChannelError{
-			Type:    channel.ErrorAccountNotFound,
+		return nil, &Error{
+			Type:    ErrorAccountNotFound,
 			Message: "account not enabled or configured",
-			Channel: channel.ChannelIDWeChat,
 		}
 	}
 
 	// Check session guard
-	if err := sessionguard.AssertSessionActive(req.AccountID); err != nil {
+	if err := session.AssertSessionActive(req.AccountID); err != nil {
 		fmt.Printf("[weixin] Session guard blocked: %v\n", err)
-		return &channel.GetUpdatesResult{
-			ErrCode: sessionguard.SessionExpiredErrCode,
+		return &weixin.GetUpdatesResult{
+			ErrCode: session.SessionExpiredErrCode,
 			ErrMsg:  err.Error(),
 		}, nil
 	}
@@ -84,9 +80,9 @@ func (a *LongPollAdapter) GetUpdates(ctx context.Context, req *channel.GetUpdate
 		resp.Ret, resp.ErrCode, len(resp.Messages), resp.GetUpdatesBuf)
 
 	// Check for session expiration
-	if resp.ErrCode == sessionguard.SessionExpiredErrCode {
-		sessionguard.PauseSession(req.AccountID)
-		return &channel.GetUpdatesResult{
+	if resp.ErrCode == session.SessionExpiredErrCode {
+		session.PauseSession(req.AccountID)
+		return &weixin.GetUpdatesResult{
 			ErrCode: int(resp.ErrCode),
 			ErrMsg:  resp.ErrMsg,
 		}, nil
@@ -101,10 +97,10 @@ func (a *LongPollAdapter) GetUpdates(ctx context.Context, req *channel.GetUpdate
 	}
 
 	// Convert WeixinMessage to channel.Message
-	messages := make([]*channel.Message, 0, len(resp.Messages))
+	messages := make([]*weixin.Message, 0, len(resp.Messages))
 	for _, msg := range resp.Messages {
 		// Only process USER messages (ignore BOT messages)
-		if msg.MessageType == weixin.MessageTypeUser {
+		if msg.MessageType == api.MessageTypeUser {
 			// Save context token for replies
 			if msg.ContextToken != "" && msg.FromUserID != "" {
 				contexttoken.SetContextToken(req.AccountID, msg.FromUserID, msg.ContextToken)
@@ -123,7 +119,7 @@ func (a *LongPollAdapter) GetUpdates(ctx context.Context, req *channel.GetUpdate
 		}
 	}
 
-	return &channel.GetUpdatesResult{
+	return &weixin.GetUpdatesResult{
 		Messages:           messages,
 		SyncBuf:            resp.GetUpdatesBuf,
 		LongPollingTimeout: resp.LongPollingTimeoutMs,
@@ -132,7 +128,7 @@ func (a *LongPollAdapter) GetUpdates(ctx context.Context, req *channel.GetUpdate
 }
 
 // StartMonitoring starts continuous monitoring for an account.
-func (a *LongPollAdapter) StartMonitoring(ctx context.Context, accountID string, handler func(ctx context.Context, msg *weixin.WeixinMessage) error) error {
+func (a *longPollAdapter) StartMonitoring(ctx context.Context, accountID string, handler func(ctx context.Context, msg *api.WeixinMessage) error) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
@@ -148,7 +144,7 @@ func (a *LongPollAdapter) StartMonitoring(ctx context.Context, accountID string,
 	}
 
 	// Create monitor
-	m := monitor.NewMonitor(accountID, account.BaseURL, account.BotToken)
+	m := message.NewMonitor(accountID, account.BaseURL, account.BotToken)
 	m.SetOnMessage(handler)
 	m.SetOnError(func(err error) {
 		fmt.Printf("[weixin] monitor error for %s: %v\n", accountID, err)
@@ -167,7 +163,7 @@ func (a *LongPollAdapter) StartMonitoring(ctx context.Context, accountID string,
 }
 
 // StopMonitoring stops continuous monitoring for an account.
-func (a *LongPollAdapter) StopMonitoring(accountID string) {
+func (a *longPollAdapter) StopMonitoring(accountID string) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
@@ -178,7 +174,7 @@ func (a *LongPollAdapter) StopMonitoring(accountID string) {
 }
 
 // GetMonitor returns the monitor for an account (if running).
-func (a *LongPollAdapter) GetMonitor(accountID string) *monitor.Monitor {
+func (a *longPollAdapter) GetMonitor(accountID string) *message.Monitor {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
 	return a.monitors[accountID]

@@ -1,4 +1,4 @@
-// package weixin provides configuration management for the WeChat channel.
+// package weixin provides configuration management for the WeChat plugin.
 package weixin
 
 import (
@@ -18,7 +18,7 @@ type AccountManager struct {
 func NewAccountManager() *AccountManager {
 	// Use default base directory
 	homeDir, _ := os.UserHomeDir()
-	baseDir := filepath.Join(homeDir, ".agentchannel", "accounts")
+	baseDir := filepath.Join(homeDir, ".weixin", "accounts")
 	os.MkdirAll(baseDir, 0700)
 
 	return &AccountManager{

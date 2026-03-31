@@ -3,14 +3,13 @@ package wecom
 import (
 	"time"
 
-	"github.com/tingly-dev/weixin/channel"
+	"github.com/tingly-dev/weixin/types"
 )
 
-// convertToChannelMessage converts a WeCom IncomingMessage to a channel.Message.
-func convertToChannelMessage(msg *IncomingMessage, reqID string) *channel.Message {
-	chMsg := &channel.Message{
+// convertToChannelMessage converts a WeCom IncomingMessage to an SDK Message.
+func convertToChannelMessage(msg *IncomingMessage, reqID string) *types.Message {
+	chMsg := &types.Message{
 		MessageID:    msg.MsgID,
-		ChannelID:    channel.ChannelIDWeChat,
 		ChatType:     convertChatType(msg.ChatType),
 		Timestamp:    time.Unix(msg.CreateTime, 0),
 		From:         msg.From.UserID,
@@ -50,24 +49,24 @@ func convertToChannelMessage(msg *IncomingMessage, reqID string) *channel.Messag
 	// Extract attachments
 	switch {
 	case msg.Image != nil:
-		chMsg.Attachments = append(chMsg.Attachments, channel.Attachment{
+		chMsg.Attachments = append(chMsg.Attachments, types.Attachment{
 			URL:      msg.Image.URL,
 			MimeType: "image",
 		})
 	case msg.File != nil:
-		chMsg.Attachments = append(chMsg.Attachments, channel.Attachment{
+		chMsg.Attachments = append(chMsg.Attachments, types.Attachment{
 			URL:      msg.File.URL,
 			MimeType: "file",
 		})
 	case msg.Video != nil:
-		chMsg.Attachments = append(chMsg.Attachments, channel.Attachment{
+		chMsg.Attachments = append(chMsg.Attachments, types.Attachment{
 			URL:      msg.Video.URL,
 			MimeType: "video",
 		})
 	case msg.Mixed != nil:
 		for _, item := range msg.Mixed.Items {
 			if item.Image != nil {
-				chMsg.Attachments = append(chMsg.Attachments, channel.Attachment{
+				chMsg.Attachments = append(chMsg.Attachments, types.Attachment{
 					URL:      item.Image.URL,
 					MimeType: "image",
 				})
@@ -89,12 +88,12 @@ func convertToChannelMessage(msg *IncomingMessage, reqID string) *channel.Messag
 	return chMsg
 }
 
-func convertChatType(chatType string) channel.ChatType {
+func convertChatType(chatType string) types.ChatType {
 	switch chatType {
 	case "group":
-		return channel.ChatTypeGroup
+		return types.ChatTypeGroup
 	default:
-		return channel.ChatTypeDirect
+		return types.ChatTypeDirect
 	}
 }
 

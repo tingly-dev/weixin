@@ -1,13 +1,13 @@
 // Package processor provides message processing pipeline for WeChat.
-package processor
+package message
 
 import (
 	"context"
 	"fmt"
 
-	"github.com/tingly-dev/weixin"
-	"github.com/tingly-dev/weixin/mediadownload"
-	"github.com/tingly-dev/weixin/sessionguard"
+	"github.com/tingly-dev/weixin/api"
+	"github.com/tingly-dev/weixin/message/cdn"
+	"github.com/tingly-dev/weixin/message/session"
 	"github.com/tingly-dev/weixin/storage"
 )
 
@@ -26,16 +26,26 @@ type MessageProcessor struct {
 	onDownload  func(mediaType, encryptedParam, aesKey, cdnBaseURL string) ([]byte, error)
 }
 
+// MediaDownloadOpts contains paths to downloaded media files.
+type MediaDownloadOpts struct {
+	ImagePath string
+	VideoPath string
+	VoicePath string
+	VoiceMime string // MIME type for voice (audio/wav or audio/silk)
+	FilePath  string
+	FileMime  string
+}
+
 // ProcessMessage contains all data needed for message processing.
 type ProcessMessage struct {
-	WeixinMessage *weixin.WeixinMessage
+	WeixinMessage *api.WeixinMessage
 	AccountID     string
 	ToUserID      string
 	ContextToken  string
 	FromUserID    string
 	SessionID     string
 	TextBody      string
-	Media         *mediadownload.MediaDownloadOpts
+	Media         *MediaDownloadOpts
 }
 
 // NewMessageProcessor creates a new message processor.
@@ -74,15 +84,15 @@ func (p *MessageProcessor) SetOnDownload(handler func(mediaType, encryptedParam,
 }
 
 // Process handles a single inbound message through the complete pipeline.
-func (p *MessageProcessor) Process(ctx context.Context, msg *weixin.WeixinMessage) error {
+func (p *MessageProcessor) Process(ctx context.Context, msg *api.WeixinMessage) error {
 	// 1. Check session guard
-	if sessionguard.IsSessionPaused(p.accountID) {
-		remaining := sessionguard.GetRemainingPauseMs(p.accountID)
+	if session.IsSessionPaused(p.accountID) {
+		remaining := session.GetRemainingPauseMs(p.accountID)
 		return fmt.Errorf("session paused for %v", remaining)
 	}
 
 	// 2. Filter only USER messages
-	if msg.MessageType != weixin.MessageTypeUser {
+	if msg.MessageType != api.MessageTypeUser {
 		return nil
 	}
 
@@ -141,8 +151,8 @@ func (p *MessageProcessor) routeMessage(userID string) string {
 }
 
 // downloadMedia downloads and decrypts media from the message.
-func (p *MessageProcessor) downloadMedia(ctx context.Context, msg *weixin.WeixinMessage) (*mediadownload.MediaDownloadOpts, error) {
-	opts := &mediadownload.MediaDownloadOpts{}
+func (p *MessageProcessor) downloadMedia(ctx context.Context, msg *api.WeixinMessage) (*MediaDownloadOpts, error) {
+	opts := &MediaDownloadOpts{}
 
 	if msg.ItemList == nil {
 		return opts, nil
@@ -150,7 +160,7 @@ func (p *MessageProcessor) downloadMedia(ctx context.Context, msg *weixin.Weixin
 
 	for _, item := range msg.ItemList {
 		switch item.Type {
-		case weixin.MessageItemTypeImage:
+		case api.MessageItemTypeImage:
 			if item.ImageItem != nil && item.ImageItem.Media != nil {
 				data, err := p.downloadImage(ctx, item.ImageItem)
 				if err == nil && len(data) > 0 {
@@ -159,7 +169,7 @@ func (p *MessageProcessor) downloadMedia(ctx context.Context, msg *weixin.Weixin
 				}
 			}
 
-		case weixin.MessageItemTypeVideo:
+		case api.MessageItemTypeVideo:
 			if item.VideoItem != nil && item.VideoItem.Media != nil {
 				data, err := p.downloadVideo(ctx, item.VideoItem)
 				if err == nil && len(data) > 0 {
@@ -167,7 +177,7 @@ func (p *MessageProcessor) downloadMedia(ctx context.Context, msg *weixin.Weixin
 				}
 			}
 
-		case weixin.MessageItemTypeVoice:
+		case api.MessageItemTypeVoice:
 			if item.VoiceItem != nil && item.VoiceItem.Media != nil {
 				data, err := p.downloadVoice(ctx, item.VoiceItem)
 				if err == nil && len(data) > 0 {
@@ -176,7 +186,7 @@ func (p *MessageProcessor) downloadMedia(ctx context.Context, msg *weixin.Weixin
 				}
 			}
 
-		case weixin.MessageItemTypeFile:
+		case api.MessageItemTypeFile:
 			if item.FileItem != nil && item.FileItem.Media != nil {
 				data, err := p.downloadFile(ctx, item.FileItem)
 				if err == nil && len(data) > 0 {
@@ -196,39 +206,39 @@ func (p *MessageProcessor) downloadMedia(ctx context.Context, msg *weixin.Weixin
 }
 
 // downloadImage downloads and decrypts an image.
-func (p *MessageProcessor) downloadImage(ctx context.Context, img *weixin.ImageItem) ([]byte, error) {
+func (p *MessageProcessor) downloadImage(ctx context.Context, img *api.ImageItem) ([]byte, error) {
 	aesKey := p.getAESKey(img.AESKey, img.Media.AESKey)
 	if p.onDownload != nil {
 		return p.onDownload("image", img.Media.EncryptQueryParam, aesKey, p.cdnBaseURL)
 	}
-	return mediadownload.DownloadAndDecryptImage(ctx, img.Media.EncryptQueryParam, aesKey, p.cdnBaseURL)
+	return cdn.DownloadAndDecryptBuffer(ctx, img.Media.EncryptQueryParam, aesKey, p.cdnBaseURL)
 }
 
 // downloadVideo downloads and decrypts a video.
-func (p *MessageProcessor) downloadVideo(ctx context.Context, vid *weixin.VideoItem) ([]byte, error) {
+func (p *MessageProcessor) downloadVideo(ctx context.Context, vid *api.VideoItem) ([]byte, error) {
 	aesKey := p.getAESKey("", vid.Media.AESKey)
 	if p.onDownload != nil {
 		return p.onDownload("video", vid.Media.EncryptQueryParam, aesKey, p.cdnBaseURL)
 	}
-	return mediadownload.DownloadAndDecryptVideo(ctx, vid.Media.EncryptQueryParam, aesKey, p.cdnBaseURL)
+	return cdn.DownloadAndDecryptBuffer(ctx, vid.Media.EncryptQueryParam, aesKey, p.cdnBaseURL)
 }
 
 // downloadVoice downloads and decrypts a voice message.
-func (p *MessageProcessor) downloadVoice(ctx context.Context, voice *weixin.VoiceItem) ([]byte, error) {
+func (p *MessageProcessor) downloadVoice(ctx context.Context, voice *api.VoiceItem) ([]byte, error) {
 	aesKey := voice.Media.AESKey
 	if p.onDownload != nil {
 		return p.onDownload("voice", voice.Media.EncryptQueryParam, aesKey, p.cdnBaseURL)
 	}
-	return mediadownload.DownloadAndDecryptVoice(ctx, voice.Media.EncryptQueryParam, aesKey, p.cdnBaseURL)
+	return cdn.DownloadAndDecryptBuffer(ctx, voice.Media.EncryptQueryParam, aesKey, p.cdnBaseURL)
 }
 
 // downloadFile downloads and decrypts a file.
-func (p *MessageProcessor) downloadFile(ctx context.Context, file *weixin.FileItem) ([]byte, error) {
+func (p *MessageProcessor) downloadFile(ctx context.Context, file *api.FileItem) ([]byte, error) {
 	aesKey := file.Media.AESKey
 	if p.onDownload != nil {
 		return p.onDownload("file", file.Media.EncryptQueryParam, aesKey, p.cdnBaseURL)
 	}
-	return mediadownload.DownloadAndDecryptFile(ctx, file.Media.EncryptQueryParam, aesKey, p.cdnBaseURL)
+	return cdn.DownloadAndDecryptBuffer(ctx, file.Media.EncryptQueryParam, aesKey, p.cdnBaseURL)
 }
 
 // getAESKey returns the AES key from either hex or base64 format.
@@ -242,13 +252,13 @@ func (p *MessageProcessor) getAESKey(hexKey, base64Key string) string {
 }
 
 // extractText extracts the text body from a message.
-func (p *MessageProcessor) extractText(msg *weixin.WeixinMessage) string {
+func (p *MessageProcessor) extractText(msg *api.WeixinMessage) string {
 	if msg.ItemList == nil {
 		return ""
 	}
 
 	for _, item := range msg.ItemList {
-		if item.Type == weixin.MessageItemTypeText && item.TextItem != nil {
+		if item.Type == api.MessageItemTypeText && item.TextItem != nil {
 			return item.TextItem.Text
 		}
 	}

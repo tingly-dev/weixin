@@ -56,7 +56,6 @@ func (c *Client) buildHeaders(body []byte) map[string]string {
 	// Generate random X-WECHAT-UIN (uint32 -> decimal string -> base64)
 	uinBytes := make([]byte, 4)
 	if _, err := rand.Read(uinBytes); err != nil {
-		// Fallback to zero if random fails
 		uinBytes = []byte{0, 0, 0, 0}
 	}
 	uin := base64.StdEncoding.EncodeToString(uinBytes)
@@ -91,69 +90,30 @@ func buildClientVersion(version string) uint32 {
 
 // doRequest performs an HTTP POST request.
 func (c *Client) doRequest(ctx context.Context, endpoint string, reqBody, respBody interface{}) error {
-	// Marshal request body
-	reqData, err := json.Marshal(reqBody)
-	if err != nil {
-		return fmt.Errorf("marshal request: %w", err)
-	}
-
-	// Create request
-	url := c.baseURL + "/" + endpoint
-	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(reqData))
-	if err != nil {
-		return fmt.Errorf("create request: %w", err)
-	}
-
-	// Set headers
-	headers := c.buildHeaders(reqData)
-	for k, v := range headers {
-		req.Header.Set(k, v)
-	}
-
-	// Send request
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return fmt.Errorf("send request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	// Read response
-	respData, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return fmt.Errorf("read response: %w", err)
-	}
-
-	// Check status code
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("API error: %d %s: %s", resp.StatusCode, resp.Status, string(respData))
-	}
-
-	// Unmarshal response
-	if respBody != nil {
-		if err := json.Unmarshal(respData, respBody); err != nil {
-			return fmt.Errorf("unmarshal response: %w", err)
-		}
-	}
-
-	return nil
+	return c.doRequestWithClient(ctx, endpoint, c.httpClient, reqBody, respBody)
 }
 
 // doRequestWithTimeout performs an HTTP POST request with a custom timeout.
+// If the context deadline is exceeded, returns nil (normal for long-poll).
 func (c *Client) doRequestWithTimeout(ctx context.Context, endpoint string, timeout time.Duration, reqBody, respBody interface{}) error {
-	// Create client with custom timeout
-	client := &http.Client{
-		Timeout: timeout,
-	}
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
 
-	// Marshal request body
+	client := &http.Client{Timeout: timeout}
+
+	err := c.doRequestWithClient(ctx, endpoint, client, reqBody, respBody)
+	if err != nil && ctx.Err() == context.DeadlineExceeded {
+		return nil // Timeout is normal for long-poll
+	}
+	return err
+}
+
+// doRequestWithClient performs an HTTP POST request using the given HTTP client.
+func (c *Client) doRequestWithClient(ctx context.Context, endpoint string, client *http.Client, reqBody, respBody interface{}) error {
 	reqData, err := json.Marshal(reqBody)
 	if err != nil {
 		return fmt.Errorf("marshal request: %w", err)
 	}
-
-	// Create request with context and timeout
-	ctx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
 
 	url := c.baseURL + "/" + endpoint
 	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(reqData))
@@ -161,35 +121,26 @@ func (c *Client) doRequestWithTimeout(ctx context.Context, endpoint string, time
 		return fmt.Errorf("create request: %w", err)
 	}
 
-	// Set headers
 	headers := c.buildHeaders(reqData)
 	for k, v := range headers {
 		req.Header.Set(k, v)
 	}
 
-	// Send request
 	resp, err := client.Do(req)
 	if err != nil {
-		// Check for timeout
-		if ctx.Err() == context.DeadlineExceeded {
-			return nil // Timeout is normal for long-poll
-		}
 		return fmt.Errorf("send request: %w", err)
 	}
 	defer resp.Body.Close()
 
-	// Read response
 	respData, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return fmt.Errorf("read response: %w", err)
 	}
 
-	// Check status code
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("API error: %d %s: %s", resp.StatusCode, resp.Status, string(respData))
 	}
 
-	// Unmarshal response
 	if respBody != nil {
 		if err := json.Unmarshal(respData, respBody); err != nil {
 			return fmt.Errorf("unmarshal response: %w", err)

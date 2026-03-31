@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/mdp/qrterminal/v3"
 )
@@ -56,9 +57,9 @@ func DisplayQRCodeInTerminal(data string, isBase64Image bool) error {
 // DisplayQRCodeResponse is a convenience function for displaying QR code from API response.
 // It automatically handles both qrcode string and base64 image content.
 func DisplayQRCodeResponse(qrcode string, imgContent string) error {
-	fmt.Println("\n" + repeatStr("=", 60))
+	fmt.Println("\n" + strings.Repeat("=", 60))
 	fmt.Println("SCAN THIS QR CODE WITH WECHAT:")
-	fmt.Println(repeatStr("=", 60))
+	fmt.Println(strings.Repeat("=", 60))
 
 	// Try to display the QR code in terminal
 	if err := DisplayQRCodeInTerminal(qrcode, false); err != nil {
@@ -68,22 +69,13 @@ func DisplayQRCodeResponse(qrcode string, imgContent string) error {
 		return err
 	}
 
-	fmt.Println(repeatStr("=", 60))
+	fmt.Println(strings.Repeat("=", 60))
 	fmt.Printf("QR Code: %s\n", qrcode)
 
 	if imgContent != "" {
 		fmt.Printf("QR Code Image (base64): %d bytes\n", len(imgContent))
 	}
 
-	fmt.Println(repeatStr("=", 60) + "\n")
+	fmt.Println(strings.Repeat("=", 60) + "\n")
 	return nil
-}
-
-// repeatStr repeats a string n times (helper function).
-func repeatStr(s string, n int) string {
-	result := ""
-	for i := 0; i < n; i++ {
-		result += s
-	}
-	return result
 }

@@ -1,5 +1,4 @@
-// Package adapters provides adapter implementations for the WeChat channel.
-package adapters
+package plugin
 
 import (
 	"context"
@@ -9,17 +8,16 @@ import (
 
 	"github.com/tingly-dev/weixin"
 	"github.com/tingly-dev/weixin/api"
-	"github.com/tingly-dev/weixin/channel"
 )
 
-// PairingAdapter handles QR code login for weixin.
-type PairingAdapter struct {
-	plugin weixin.PluginInterface
+// pairingAdapter handles QR code login for weixin.
+type pairingAdapter struct {
+	plugin *Plugin
 }
 
-// NewPairingAdapter creates a new pairing adapter.
-func NewPairingAdapter(plugin weixin.PluginInterface) *PairingAdapter {
-	return &PairingAdapter{plugin: plugin}
+// newPairingAdapter creates a new pairing adapter.
+func newPairingAdapter(plugin *Plugin) *pairingAdapter {
+	return &pairingAdapter{plugin: plugin}
 }
 
 // activeLogin represents an active QR code login session.
@@ -43,7 +41,7 @@ const (
 )
 
 // LoginWithQrStart initiates QR code login flow.
-func (a *PairingAdapter) LoginWithQrStart(ctx context.Context, accountID string) (*channel.QrCodeStartResult, error) {
+func (a *pairingAdapter) LoginWithQrStart(ctx context.Context, accountID string) (*weixin.QrCodeStartResult, error) {
 	// Get plugin config
 	config := a.plugin.WeChatConfig()
 
@@ -68,7 +66,7 @@ func (a *PairingAdapter) LoginWithQrStart(ctx context.Context, accountID string)
 	activeLogins[accountID] = login
 	loginMutex.Unlock()
 
-	return &channel.QrCodeStartResult{
+	return &weixin.QrCodeStartResult{
 		QrCodeID:   qrResp.Qrcode,
 		QrCodeURL:  qrResp.QrcodeImgContent,
 		QrCodeData: qrResp.QrcodeImgContent,
@@ -77,7 +75,7 @@ func (a *PairingAdapter) LoginWithQrStart(ctx context.Context, accountID string)
 }
 
 // LoginWithQrWait waits for QR code scan confirmation.
-func (a *PairingAdapter) LoginWithQrWait(ctx context.Context, accountID, qrID string) (*channel.QrCodeWaitResult, error) {
+func (a *pairingAdapter) LoginWithQrWait(ctx context.Context, accountID, qrID string) (*weixin.QrCodeWaitResult, error) {
 	// Get plugin config
 	config := a.plugin.WeChatConfig()
 	client := api.NewClient(config.BaseURL, "")
@@ -96,7 +94,7 @@ func (a *PairingAdapter) LoginWithQrWait(ctx context.Context, accountID, qrID st
 		loginMutex.Lock()
 		delete(activeLogins, accountID)
 		loginMutex.Unlock()
-		return &channel.QrCodeWaitResult{
+		return &weixin.QrCodeWaitResult{
 			Success: false,
 			Error:   "QR code expired",
 		}, nil
@@ -113,7 +111,7 @@ func (a *PairingAdapter) LoginWithQrWait(ctx context.Context, accountID, qrID st
 			loginMutex.Lock()
 			delete(activeLogins, accountID)
 			loginMutex.Unlock()
-			return &channel.QrCodeWaitResult{
+			return &weixin.QrCodeWaitResult{
 				Success: false,
 				Error:   err.Error(),
 			}, nil
@@ -137,7 +135,7 @@ func (a *PairingAdapter) LoginWithQrWait(ctx context.Context, accountID, qrID st
 				loginMutex.Lock()
 				delete(activeLogins, accountID)
 				loginMutex.Unlock()
-				return &channel.QrCodeWaitResult{
+				return &weixin.QrCodeWaitResult{
 					Success: false,
 					Error:   "QR code expired too many times",
 				}, nil
@@ -149,7 +147,7 @@ func (a *PairingAdapter) LoginWithQrWait(ctx context.Context, accountID, qrID st
 				loginMutex.Lock()
 				delete(activeLogins, accountID)
 				loginMutex.Unlock()
-				return &channel.QrCodeWaitResult{
+				return &weixin.QrCodeWaitResult{
 					Success: false,
 					Error:   fmt.Sprintf("refresh QR code: %v", err),
 				}, nil
@@ -162,7 +160,7 @@ func (a *PairingAdapter) LoginWithQrWait(ctx context.Context, accountID, qrID st
 			login.startedAt = time.Now()
 			loginMutex.Unlock()
 
-			return &channel.QrCodeWaitResult{
+			return &weixin.QrCodeWaitResult{
 				Success: false,
 				Error:   "QR code expired, please scan again",
 			}, nil
@@ -188,13 +186,13 @@ func (a *PairingAdapter) LoginWithQrWait(ctx context.Context, accountID, qrID st
 			}
 
 			if err := a.plugin.Accounts().Save(account); err != nil {
-				return &channel.QrCodeWaitResult{
+				return &weixin.QrCodeWaitResult{
 					Success: false,
 					Error:   fmt.Sprintf("save account: %v", err),
 				}, nil
 			}
 
-			return &channel.QrCodeWaitResult{
+			return &weixin.QrCodeWaitResult{
 				Success:   true,
 				BotToken:  statusResp.BotToken,
 				AccountID: statusResp.IlinkBotID,
@@ -214,24 +212,24 @@ func (a *PairingAdapter) LoginWithQrWait(ctx context.Context, accountID, qrID st
 	delete(activeLogins, accountID)
 	loginMutex.Unlock()
 
-	return &channel.QrCodeWaitResult{
+	return &weixin.QrCodeWaitResult{
 		Success: false,
 		Error:   "Login timeout",
 	}, nil
 }
 
 // IDLabel returns the label used to store the paired user ID.
-func (a *PairingAdapter) IDLabel() string {
+func (a *pairingAdapter) IDLabel() string {
 	return "wechat_user_id"
 }
 
 // NormalizeAllowEntry normalizes an entry for the allowlist.
-func (a *PairingAdapter) NormalizeAllowEntry(entry string) string {
+func (a *pairingAdapter) NormalizeAllowEntry(entry string) string {
 	return entry
 }
 
 // NotifyApproval sends a notification that pairing was approved.
-func (a *PairingAdapter) NotifyApproval(ctx context.Context, id string, message string) error {
+func (a *pairingAdapter) NotifyApproval(ctx context.Context, id string, message string) error {
 	// Not implemented for WeChat
 	return nil
 }

@@ -1,4 +1,4 @@
-// Package message provides conversion between WeChat and channel message formats.
+// Package message provides conversion between WeChat and SDK message formats.
 package message
 
 import (
@@ -6,14 +6,15 @@ import (
 	"fmt"
 
 	"github.com/tingly-dev/weixin"
-	"github.com/tingly-dev/weixin/channel"
-	"github.com/tingly-dev/weixin/markdown"
-	"github.com/tingly-dev/weixin/media"
+	"github.com/tingly-dev/weixin/api"
+	"github.com/tingly-dev/weixin/message/markdown"
+	"github.com/tingly-dev/weixin/message/media"
+	"github.com/tingly-dev/weixin/types"
 )
 
-// ConvertToOutboundMessage converts a channel.OutboundMessage to WeChat message format for sending.
+// ConvertToOutboundMessage converts an OutboundMessage to WeChat message format for sending.
 // This is a separate function to handle any additional processing needed for outbound messages.
-func ConvertToOutboundMessage(msg *channel.OutboundMessage) (toUserID, contextToken string, items []weixin.MessageItem) {
+func ConvertToOutboundMessage(msg *types.OutboundMessage) (toUserID, contextToken string, items []api.MessageItem) {
 	toUserID = msg.To
 	contextToken = msg.ContextToken
 	items = ConvertOutboundMessageToList(msg)
@@ -22,27 +23,27 @@ func ConvertToOutboundMessage(msg *channel.OutboundMessage) (toUserID, contextTo
 
 // BuildTextItem creates a text MessageItem.
 // Converts markdown to plain text before creating the item.
-func BuildTextItem(text string) weixin.MessageItem {
+func BuildTextItem(text string) api.MessageItem {
 	plainText := markdown.ToPlainText(text)
-	return weixin.MessageItem{
-		Type: weixin.MessageItemTypeText,
-		TextItem: &weixin.TextItem{
+	return api.MessageItem{
+		Type: api.MessageItemTypeText,
+		TextItem: &api.TextItem{
 			Text: plainText,
 		},
 	}
 }
 
-// ConvertOutboundMessageToList converts a channel.OutboundMessage to WeChat MessageItem list.
+// ConvertOutboundMessageToList converts an OutboundMessage to WeChat MessageItem list.
 // Applies markdown stripping to text content.
-func ConvertOutboundMessageToList(msg *channel.OutboundMessage) []weixin.MessageItem {
-	var items []weixin.MessageItem
+func ConvertOutboundMessageToList(msg *types.OutboundMessage) []api.MessageItem {
+	var items []api.MessageItem
 
 	// Add text item if present (convert markdown to plain text)
 	if msg.Text != "" {
 		plainText := markdown.ToPlainText(msg.Text)
-		items = append(items, weixin.MessageItem{
-			Type: weixin.MessageItemTypeText,
-			TextItem: &weixin.TextItem{
+		items = append(items, api.MessageItem{
+			Type: api.MessageItemTypeText,
+			TextItem: &api.TextItem{
 				Text: plainText,
 			},
 		})
@@ -52,27 +53,27 @@ func ConvertOutboundMessageToList(msg *channel.OutboundMessage) []weixin.Message
 	if msg.MediaURL != "" || len(msg.MediaData) > 0 {
 		switch msg.ContentType {
 		case "image":
-			items = append(items, weixin.MessageItem{
-				Type: weixin.MessageItemTypeImage,
-				ImageItem: &weixin.ImageItem{
+			items = append(items, api.MessageItem{
+				Type: api.MessageItemTypeImage,
+				ImageItem: &api.ImageItem{
 					URL: msg.MediaURL,
 				},
 			})
 		case "video":
-			items = append(items, weixin.MessageItem{
-				Type:      weixin.MessageItemTypeVideo,
-				VideoItem: &weixin.VideoItem{},
+			items = append(items, api.MessageItem{
+				Type:      api.MessageItemTypeVideo,
+				VideoItem: &api.VideoItem{},
 			})
 		case "audio", "voice":
-			items = append(items, weixin.MessageItem{
-				Type:      weixin.MessageItemTypeVoice,
-				VoiceItem: &weixin.VoiceItem{},
+			items = append(items, api.MessageItem{
+				Type:      api.MessageItemTypeVoice,
+				VoiceItem: &api.VoiceItem{},
 			})
 		default:
 			// Treat as file
-			items = append(items, weixin.MessageItem{
-				Type: weixin.MessageItemTypeFile,
-				FileItem: &weixin.FileItem{
+			items = append(items, api.MessageItem{
+				Type: api.MessageItemTypeFile,
+				FileItem: &api.FileItem{
 					FileName: msg.FileName,
 				},
 			})
@@ -83,11 +84,11 @@ func ConvertOutboundMessageToList(msg *channel.OutboundMessage) []weixin.Message
 }
 
 // BuildImageItem creates an image MessageItem with CDN media reference.
-func BuildImageItem(encryptQueryParam, aesKey string) weixin.MessageItem {
-	return weixin.MessageItem{
-		Type: weixin.MessageItemTypeImage,
-		ImageItem: &weixin.ImageItem{
-			Media: &weixin.CDNMedia{
+func BuildImageItem(encryptQueryParam, aesKey string) api.MessageItem {
+	return api.MessageItem{
+		Type: api.MessageItemTypeImage,
+		ImageItem: &api.ImageItem{
+			Media: &api.CDNMedia{
 				EncryptQueryParam: encryptQueryParam,
 				AESKey:            aesKey,
 			},
@@ -96,15 +97,15 @@ func BuildImageItem(encryptQueryParam, aesKey string) weixin.MessageItem {
 }
 
 // BuildVideoItem creates a video MessageItem with CDN media references.
-func BuildVideoItem(encryptQueryParam, thumbEncryptParam, aesKey string) weixin.MessageItem {
-	return weixin.MessageItem{
-		Type: weixin.MessageItemTypeVideo,
-		VideoItem: &weixin.VideoItem{
-			Media: &weixin.CDNMedia{
+func BuildVideoItem(encryptQueryParam, thumbEncryptParam, aesKey string) api.MessageItem {
+	return api.MessageItem{
+		Type: api.MessageItemTypeVideo,
+		VideoItem: &api.VideoItem{
+			Media: &api.CDNMedia{
 				EncryptQueryParam: encryptQueryParam,
 				AESKey:            aesKey,
 			},
-			ThumbMedia: &weixin.CDNMedia{
+			ThumbMedia: &api.CDNMedia{
 				EncryptQueryParam: thumbEncryptParam,
 				AESKey:            aesKey,
 			},
@@ -113,11 +114,11 @@ func BuildVideoItem(encryptQueryParam, thumbEncryptParam, aesKey string) weixin.
 }
 
 // BuildFileItem creates a file MessageItem with CDN media reference.
-func BuildFileItem(encryptQueryParam, aesKey, fileName string) weixin.MessageItem {
-	return weixin.MessageItem{
-		Type: weixin.MessageItemTypeFile,
-		FileItem: &weixin.FileItem{
-			Media: &weixin.CDNMedia{
+func BuildFileItem(encryptQueryParam, aesKey, fileName string) api.MessageItem {
+	return api.MessageItem{
+		Type: api.MessageItemTypeFile,
+		FileItem: &api.FileItem{
+			Media: &api.CDNMedia{
 				EncryptQueryParam: encryptQueryParam,
 				AESKey:            aesKey,
 			},
@@ -127,11 +128,11 @@ func BuildFileItem(encryptQueryParam, aesKey, fileName string) weixin.MessageIte
 }
 
 // BuildVoiceItem creates a voice MessageItem with CDN media reference.
-func BuildVoiceItem(encryptQueryParam, aesKey string) weixin.MessageItem {
-	return weixin.MessageItem{
-		Type: weixin.MessageItemTypeVoice,
-		VoiceItem: &weixin.VoiceItem{
-			Media: &weixin.CDNMedia{
+func BuildVoiceItem(encryptQueryParam, aesKey string) api.MessageItem {
+	return api.MessageItem{
+		Type: api.MessageItemTypeVoice,
+		VoiceItem: &api.VoiceItem{
+			Media: &api.CDNMedia{
 				EncryptQueryParam: encryptQueryParam,
 				AESKey:            aesKey,
 			},
@@ -140,17 +141,17 @@ func BuildVoiceItem(encryptQueryParam, aesKey string) weixin.MessageItem {
 }
 
 // IsTextOnly checks if the outbound message contains only text.
-func IsTextOnly(msg *channel.OutboundMessage) bool {
+func IsTextOnly(msg *types.OutboundMessage) bool {
 	return msg.Text != "" && msg.MediaURL == "" && len(msg.MediaData) == 0
 }
 
 // HasMedia checks if the outbound message contains media.
-func HasMedia(msg *channel.OutboundMessage) bool {
+func HasMedia(msg *types.OutboundMessage) bool {
 	return msg.MediaURL != "" || len(msg.MediaData) > 0
 }
 
 // GetMediaType returns the media type of the outbound message.
-func GetMediaType(msg *channel.OutboundMessage) int {
+func GetMediaType(msg *types.OutboundMessage) int {
 	switch msg.ContentType {
 	case "image":
 		return weixin.UploadMediaTypeImage
@@ -164,11 +165,11 @@ func GetMediaType(msg *channel.OutboundMessage) int {
 }
 
 // BuildImageItemFromUpload creates an image MessageItem from uploaded file info.
-func BuildImageItemFromUpload(uploaded *media.UploadedFileInfo, midSize int64) weixin.MessageItem {
-	return weixin.MessageItem{
-		Type: weixin.MessageItemTypeImage,
-		ImageItem: &weixin.ImageItem{
-			Media: &weixin.CDNMedia{
+func BuildImageItemFromUpload(uploaded *media.UploadedFileInfo, midSize int64) api.MessageItem {
+	return api.MessageItem{
+		Type: api.MessageItemTypeImage,
+		ImageItem: &api.ImageItem{
+			Media: &api.CDNMedia{
 				EncryptQueryParam: uploaded.DownloadEncryptedQueryParam,
 				AESKey:            base64.StdEncoding.EncodeToString(uploaded.AESKey),
 				EncryptType:       1,
@@ -179,11 +180,11 @@ func BuildImageItemFromUpload(uploaded *media.UploadedFileInfo, midSize int64) w
 }
 
 // BuildVideoItemFromUpload creates a video MessageItem from uploaded file info.
-func BuildVideoItemFromUpload(uploaded *media.UploadedFileInfo, videoSize int64) weixin.MessageItem {
-	return weixin.MessageItem{
-		Type: weixin.MessageItemTypeVideo,
-		VideoItem: &weixin.VideoItem{
-			Media: &weixin.CDNMedia{
+func BuildVideoItemFromUpload(uploaded *media.UploadedFileInfo, videoSize int64) api.MessageItem {
+	return api.MessageItem{
+		Type: api.MessageItemTypeVideo,
+		VideoItem: &api.VideoItem{
+			Media: &api.CDNMedia{
 				EncryptQueryParam: uploaded.DownloadEncryptedQueryParam,
 				AESKey:            base64.StdEncoding.EncodeToString(uploaded.AESKey),
 				EncryptType:       1,
@@ -194,11 +195,11 @@ func BuildVideoItemFromUpload(uploaded *media.UploadedFileInfo, videoSize int64)
 }
 
 // BuildFileItemFromUpload creates a file MessageItem from uploaded file info.
-func BuildFileItemFromUpload(uploaded *media.UploadedFileInfo, fileName string, fileLen int64) weixin.MessageItem {
-	return weixin.MessageItem{
-		Type: weixin.MessageItemTypeFile,
-		FileItem: &weixin.FileItem{
-			Media: &weixin.CDNMedia{
+func BuildFileItemFromUpload(uploaded *media.UploadedFileInfo, fileName string, fileLen int64) api.MessageItem {
+	return api.MessageItem{
+		Type: api.MessageItemTypeFile,
+		FileItem: &api.FileItem{
+			Media: &api.CDNMedia{
 				EncryptQueryParam: uploaded.DownloadEncryptedQueryParam,
 				AESKey:            base64.StdEncoding.EncodeToString(uploaded.AESKey),
 				EncryptType:       1,

@@ -1,5 +1,5 @@
 // Package crypto provides encryption utilities for WeChat media.
-package crypto
+package api
 
 import (
 	"bytes"

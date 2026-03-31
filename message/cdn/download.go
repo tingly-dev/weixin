@@ -9,7 +9,7 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/tingly-dev/weixin/crypto"
+	"github.com/tingly-dev/weixin/api"
 )
 
 // DownloadAndDecryptBuffer downloads and decrypts media from WeChat CDN.
@@ -34,7 +34,7 @@ func DownloadAndDecryptBuffer(ctx context.Context, encryptedQueryParam, aesKeyBa
 	}
 
 	// Decrypt
-	plaintext, err := crypto.DecryptAesEcb(encrypted, aesKey)
+	plaintext, err := api.DecryptAesEcb(encrypted, aesKey)
 	if err != nil {
 		return nil, fmt.Errorf("decrypt: %w", err)
 	}

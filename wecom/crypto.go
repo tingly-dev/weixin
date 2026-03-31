@@ -8,7 +8,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"io"
 	"time"
 )
 
@@ -16,7 +15,9 @@ import (
 func generateReqID(prefix string) string {
 	ts := time.Now().UnixMilli()
 	b := make([]byte, 4)
-	rand.Read(b)
+	if _, err := rand.Read(b); err != nil {
+		return fmt.Sprintf("%s_%d_%s", prefix, ts, hex.EncodeToString(b))
+	}
 	return fmt.Sprintf("%s_%d_%s", prefix, ts, hex.EncodeToString(b))
 }
 
@@ -75,14 +76,4 @@ func parseFrameBody(raw interface{}, target interface{}) error {
 // encodeFrame serializes a WsFrame to JSON bytes for sending over WebSocket.
 func encodeFrame(frame *WsFrame) ([]byte, error) {
 	return json.Marshal(frame)
-}
-
-// readFrame reads and deserializes a single JSON frame from a reader.
-func readFrame(r io.Reader) (*WsFrame, error) {
-	decoder := json.NewDecoder(r)
-	var frame WsFrame
-	if err := decoder.Decode(&frame); err != nil {
-		return nil, err
-	}
-	return &frame, nil
 }

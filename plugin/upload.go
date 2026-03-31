@@ -1,5 +1,4 @@
-// Package adapters provides adapter implementations for the WeChat channel.
-package adapters
+package plugin
 
 import (
 	"context"
@@ -7,22 +6,21 @@ import (
 
 	"github.com/tingly-dev/weixin"
 	"github.com/tingly-dev/weixin/api"
-	"github.com/tingly-dev/weixin/channel"
-	"github.com/tingly-dev/weixin/media"
+	"github.com/tingly-dev/weixin/message/media"
 )
 
-// UploadAdapter handles media file uploads to WeChat CDN.
-type UploadAdapter struct {
-	plugin weixin.PluginInterface
+// uploadAdapter handles media file uploads to WeChat CDN.
+type uploadAdapter struct {
+	plugin *Plugin
 }
 
-// NewUploadAdapter creates a new upload adapter.
-func NewUploadAdapter(plugin weixin.PluginInterface) *UploadAdapter {
-	return &UploadAdapter{plugin: plugin}
+// newUploadAdapter creates a new upload adapter.
+func newUploadAdapter(plugin *Plugin) *uploadAdapter {
+	return &uploadAdapter{plugin: plugin}
 }
 
 // GetUploadURL retrieves a pre-signed URL for uploading media.
-func (a *UploadAdapter) GetUploadURL(ctx context.Context, req *channel.UploadURLRequest) (*channel.UploadURLResult, error) {
+func (a *uploadAdapter) GetUploadURL(ctx context.Context, req *weixin.UploadURLRequest) (*weixin.UploadURLResult, error) {
 	// Get account
 	account, err := a.plugin.Accounts().Get(req.FileKey) // FileKey is used as accountID here
 	if err != nil {
@@ -48,13 +46,13 @@ func (a *UploadAdapter) GetUploadURL(ctx context.Context, req *channel.UploadURL
 		return nil, fmt.Errorf("get upload URL: %w", err)
 	}
 
-	return &channel.UploadURLResult{
+	return &weixin.UploadURLResult{
 		UploadParam: resp.UploadParam,
 	}, nil
 }
 
 // UploadMedia uploads a media file and returns the reference.
-func (a *UploadAdapter) UploadMedia(ctx context.Context, req *channel.MediaUploadRequest) (*channel.MediaUploadResult, error) {
+func (a *uploadAdapter) UploadMedia(ctx context.Context, req *weixin.MediaUploadRequest) (*weixin.MediaUploadResult, error) {
 	// Use the UploadMediaToCDN function which handles the full pipeline
 	// First, get an account to use
 	accounts, err := a.plugin.Accounts().ListIDs()
@@ -86,7 +84,7 @@ func (a *UploadAdapter) UploadMedia(ctx context.Context, req *channel.MediaUploa
 		return nil, fmt.Errorf("upload media: %w", err)
 	}
 
-	return &channel.MediaUploadResult{
+	return &weixin.MediaUploadResult{
 		FileKey:      uploaded.FileKey,
 		FileSize:     uploaded.FileSize,
 		EncryptKey:   uploaded.AESKey,

@@ -4,10 +4,11 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/tingly-dev/weixin/channel"
+	"github.com/tingly-dev/weixin/plugin"
+	"github.com/tingly-dev/weixin/types"
 )
 
-// ActionsAdapter implements channel.ActionsAdapter for WeCom AI Bot.
+// ActionsAdapter implements ActionsAdapter for WeCom AI Bot.
 type ActionsAdapter struct {
 	gateway *GatewayAdapter
 }
@@ -20,7 +21,7 @@ func NewActionsAdapter(gateway *GatewayAdapter) *ActionsAdapter {
 // Send sends a text message.
 // If ContextToken is set, it sends as a reply (passive).
 // If ContextToken is empty, it sends as a proactive message.
-func (a *ActionsAdapter) Send(ctx context.Context, msg *channel.OutboundMessage) (*channel.OutboundResult, error) {
+func (a *ActionsAdapter) Send(ctx context.Context, msg *types.OutboundMessage) (*types.OutboundResult, error) {
 	client := a.gateway.GetClient(msg.AccountID)
 	if client == nil || !client.IsConnected() {
 		return nil, fmt.Errorf("account %s not connected", msg.AccountID)
@@ -38,7 +39,7 @@ func (a *ActionsAdapter) Send(ctx context.Context, msg *channel.OutboundMessage)
 }
 
 // SendStream sends a streaming text chunk.
-func (a *ActionsAdapter) SendStream(ctx context.Context, msg *channel.OutboundMessage) (*channel.OutboundResult, error) {
+func (a *ActionsAdapter) SendStream(ctx context.Context, msg *types.OutboundMessage) (*types.OutboundResult, error) {
 	client := a.gateway.GetClient(msg.AccountID)
 	if client == nil || !client.IsConnected() {
 		return nil, fmt.Errorf("account %s not connected", msg.AccountID)
@@ -56,9 +57,9 @@ func (a *ActionsAdapter) SendStream(ctx context.Context, msg *channel.OutboundMe
 			"template_card": card,
 		}
 		if err := client.SendReply(ctx, msg.ContextToken, body); err != nil {
-			return &channel.OutboundResult{OK: false, Error: err.Error()}, err
+			return &types.OutboundResult{OK: false, Error: err.Error()}, err
 		}
-		return &channel.OutboundResult{OK: true}, nil
+		return &types.OutboundResult{OK: true}, nil
 	}
 
 	body := map[string]interface{}{
@@ -66,13 +67,13 @@ func (a *ActionsAdapter) SendStream(ctx context.Context, msg *channel.OutboundMe
 		"stream":  buildStreamBody(msg),
 	}
 	if err := client.SendReply(ctx, msg.ContextToken, body); err != nil {
-		return &channel.OutboundResult{OK: false, Error: err.Error()}, err
+		return &types.OutboundResult{OK: false, Error: err.Error()}, err
 	}
-	return &channel.OutboundResult{OK: true, ChannelMessageID: msg.StreamID}, nil
+	return &types.OutboundResult{OK: true, ChannelMessageID: msg.StreamID}, nil
 }
 
 // SendMedia sends a media message.
-func (a *ActionsAdapter) SendMedia(ctx context.Context, msg *channel.OutboundMessage) (*channel.OutboundResult, error) {
+func (a *ActionsAdapter) SendMedia(ctx context.Context, msg *types.OutboundMessage) (*types.OutboundResult, error) {
 	client := a.gateway.GetClient(msg.AccountID)
 	if client == nil || !client.IsConnected() {
 		return nil, fmt.Errorf("account %s not connected", msg.AccountID)
@@ -86,50 +87,45 @@ func (a *ActionsAdapter) SendMedia(ctx context.Context, msg *channel.OutboundMes
 	mediaType := detectMediaType(msg.ContentType)
 
 	if msg.ContextToken != "" {
-		// Passive media reply
 		body := buildMediaBody(mediaType, mediaID, msg)
 		if err := client.SendReply(ctx, msg.ContextToken, body); err != nil {
-			return &channel.OutboundResult{OK: false, Error: err.Error()}, err
+			return &types.OutboundResult{OK: false, Error: err.Error()}, err
 		}
 	} else {
-		// Proactive media send
 		body := map[string]interface{}{
 			"chatid":  msg.To,
 			"msgtype": mediaType,
 		}
 		addMediaToBody(body, mediaType, mediaID, msg)
 		if err := client.SendProactive(ctx, body); err != nil {
-			return &channel.OutboundResult{OK: false, Error: err.Error()}, err
+			return &types.OutboundResult{OK: false, Error: err.Error()}, err
 		}
 	}
 
-	return &channel.OutboundResult{OK: true}, nil
+	return &types.OutboundResult{OK: true}, nil
 }
 
 // React is not supported by WeCom AI Bot.
-func (a *ActionsAdapter) React(ctx context.Context, reaction *channel.Reaction) (*channel.OutboundResult, error) {
-	return nil, &channel.ChannelError{
-		Type:    channel.ErrorNotSupported,
+func (a *ActionsAdapter) React(ctx context.Context, reaction *types.Reaction) (*types.OutboundResult, error) {
+	return nil, &plugin.Error{
+		Type:    plugin.ErrorNotSupported,
 		Message: "reactions not supported by WeCom AI Bot",
-		Channel: channel.ChannelIDWeChat,
 	}
 }
 
 // Edit is not supported by WeCom AI Bot.
-func (a *ActionsAdapter) Edit(ctx context.Context, messageID string, text string) (*channel.OutboundResult, error) {
-	return nil, &channel.ChannelError{
-		Type:    channel.ErrorNotSupported,
+func (a *ActionsAdapter) Edit(ctx context.Context, messageID string, text string) (*types.OutboundResult, error) {
+	return nil, &plugin.Error{
+		Type:    plugin.ErrorNotSupported,
 		Message: "message editing not supported by WeCom AI Bot",
-		Channel: channel.ChannelIDWeChat,
 	}
 }
 
 // Unsend is not supported by WeCom AI Bot.
-func (a *ActionsAdapter) Unsend(ctx context.Context, messageID string) (*channel.OutboundResult, error) {
-	return nil, &channel.ChannelError{
-		Type:    channel.ErrorNotSupported,
+func (a *ActionsAdapter) Unsend(ctx context.Context, messageID string) (*types.OutboundResult, error) {
+	return nil, &plugin.Error{
+		Type:    plugin.ErrorNotSupported,
 		Message: "message deletion not supported by WeCom AI Bot",
-		Channel: channel.ChannelIDWeChat,
 	}
 }
 
@@ -137,7 +133,7 @@ func (a *ActionsAdapter) Unsend(ctx context.Context, messageID string) (*channel
 // Internal helpers
 // ---------------------------------------------------------------------------
 
-func (a *ActionsAdapter) sendReply(ctx context.Context, client *Client, msg *channel.OutboundMessage) (*channel.OutboundResult, error) {
+func (a *ActionsAdapter) sendReply(ctx context.Context, client *Client, msg *types.OutboundMessage) (*types.OutboundResult, error) {
 	body := map[string]interface{}{
 		"msgtype": MsgTypeStream,
 		"stream": map[string]interface{}{
@@ -147,12 +143,12 @@ func (a *ActionsAdapter) sendReply(ctx context.Context, client *Client, msg *cha
 		},
 	}
 	if err := client.SendReply(ctx, msg.ContextToken, body); err != nil {
-		return &channel.OutboundResult{OK: false, Error: err.Error()}, err
+		return &types.OutboundResult{OK: false, Error: err.Error()}, err
 	}
-	return &channel.OutboundResult{OK: true}, nil
+	return &types.OutboundResult{OK: true}, nil
 }
 
-func (a *ActionsAdapter) sendProactive(ctx context.Context, client *Client, msg *channel.OutboundMessage) (*channel.OutboundResult, error) {
+func (a *ActionsAdapter) sendProactive(ctx context.Context, client *Client, msg *types.OutboundMessage) (*types.OutboundResult, error) {
 	body := map[string]interface{}{
 		"chatid":  msg.To,
 		"msgtype": MsgTypeMarkdown,
@@ -161,19 +157,19 @@ func (a *ActionsAdapter) sendProactive(ctx context.Context, client *Client, msg 
 		},
 	}
 	if err := client.SendProactive(ctx, body); err != nil {
-		return &channel.OutboundResult{OK: false, Error: err.Error()}, err
+		return &types.OutboundResult{OK: false, Error: err.Error()}, err
 	}
-	return &channel.OutboundResult{OK: true}, nil
+	return &types.OutboundResult{OK: true}, nil
 }
 
-func (a *ActionsAdapter) sendCard(ctx context.Context, client *Client, msg *channel.OutboundMessage, card interface{}) (*channel.OutboundResult, error) {
+func (a *ActionsAdapter) sendCard(ctx context.Context, client *Client, msg *types.OutboundMessage, card interface{}) (*types.OutboundResult, error) {
 	if msg.ContextToken != "" {
 		body := map[string]interface{}{
 			"msgtype":       MsgTypeTemplateCard,
 			"template_card": card,
 		}
 		if err := client.SendReply(ctx, msg.ContextToken, body); err != nil {
-			return &channel.OutboundResult{OK: false, Error: err.Error()}, err
+			return &types.OutboundResult{OK: false, Error: err.Error()}, err
 		}
 	} else {
 		body := map[string]interface{}{
@@ -182,13 +178,13 @@ func (a *ActionsAdapter) sendCard(ctx context.Context, client *Client, msg *chan
 			"template_card": card,
 		}
 		if err := client.SendProactive(ctx, body); err != nil {
-			return &channel.OutboundResult{OK: false, Error: err.Error()}, err
+			return &types.OutboundResult{OK: false, Error: err.Error()}, err
 		}
 	}
-	return &channel.OutboundResult{OK: true}, nil
+	return &types.OutboundResult{OK: true}, nil
 }
 
-func buildStreamBody(msg *channel.OutboundMessage) map[string]interface{} {
+func buildStreamBody(msg *types.OutboundMessage) map[string]interface{} {
 	body := map[string]interface{}{
 		"id":      msg.StreamID,
 		"finish":  msg.StreamFinish,
@@ -213,7 +209,7 @@ func detectMediaType(contentType string) string {
 	}
 }
 
-func buildMediaBody(mediaType, mediaID string, msg *channel.OutboundMessage) map[string]interface{} {
+func buildMediaBody(mediaType, mediaID string, msg *types.OutboundMessage) map[string]interface{} {
 	body := map[string]interface{}{
 		"msgtype": mediaType,
 	}
@@ -221,7 +217,7 @@ func buildMediaBody(mediaType, mediaID string, msg *channel.OutboundMessage) map
 	return body
 }
 
-func addMediaToBody(body map[string]interface{}, mediaType, mediaID string, msg *channel.OutboundMessage) {
+func addMediaToBody(body map[string]interface{}, mediaType, mediaID string, msg *types.OutboundMessage) {
 	switch mediaType {
 	case MsgTypeVideo:
 		body[mediaType] = map[string]interface{}{

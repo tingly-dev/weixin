@@ -6,19 +6,19 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"log"
-
-	"github.com/tingly-dev/weixin"
 )
 
 // generateClientID generates a unique client ID.
 func generateClientID() string {
 	b := make([]byte, 16)
-	rand.Read(b)
+	if _, err := rand.Read(b); err != nil {
+		return "openclaw-weixin-" + hex.EncodeToString(b)[:16]
+	}
 	return "openclaw-weixin-" + hex.EncodeToString(b)[:16]
 }
 
 // SendMessage sends a message to weixin.
-func (c *Client) SendMessage(ctx context.Context, toUserID, contextToken string, items []weixin.MessageItem) error {
+func (c *Client) SendMessage(ctx context.Context, toUserID, contextToken string, items []MessageItem) error {
 	// contextToken is optional for block-streaming: the first chunk may lack it,
 	// and subsequent chunks receive a reply context_token from the server.
 	if contextToken == "" {
@@ -29,8 +29,8 @@ func (c *Client) SendMessage(ctx context.Context, toUserID, contextToken string,
 			FromUserID:   "", // Bot ID is handled by server
 			ToUserID:     toUserID,
 			ClientID:     generateClientID(),
-			MessageType:  weixin.MessageTypeBot,
-			MessageState: weixin.MessageStateFinish,
+			MessageType:  MessageTypeBot,
+			MessageState: MessageStateFinish,
 			ContextToken: contextToken,
 			ItemList:     items,
 		},
@@ -44,10 +44,10 @@ func (c *Client) SendMessage(ctx context.Context, toUserID, contextToken string,
 
 // SendTextMessage sends a text message.
 func (c *Client) SendTextMessage(ctx context.Context, toUserID, contextToken, text string) error {
-	items := []weixin.MessageItem{
+	items := []MessageItem{
 		{
-			Type: weixin.MessageItemTypeText,
-			TextItem: &weixin.TextItem{
+			Type: MessageItemTypeText,
+			TextItem: &TextItem{
 				Text: text,
 			},
 		},

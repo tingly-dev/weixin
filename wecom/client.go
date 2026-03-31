@@ -4,14 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
 	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
-	"github.com/tingly-dev/weixin/channel"
+	"github.com/tingly-dev/weixin/types"
 )
 
 // ClientConfig holds configuration for the WeCom AI Bot WebSocket client.
@@ -59,7 +58,7 @@ type Client struct {
 	conn *websocket.Conn
 	mu   sync.Mutex
 
-	handler channel.EventHandler
+	handler types.EventHandler
 
 	// Ack tracking: req_id -> channel to signal ack received
 	ackChans   map[string]chan struct{}
@@ -173,7 +172,7 @@ func (c *Client) IsConnected() bool {
 }
 
 // SetEventHandler sets the handler for incoming messages and events.
-func (c *Client) SetEventHandler(h channel.EventHandler) {
+func (c *Client) SetEventHandler(h types.EventHandler) {
 	c.handler = h
 }
 
@@ -299,7 +298,7 @@ func (c *Client) handleReadError(ctx context.Context, err error) {
 
 	// Notify handler
 	if c.handler != nil {
-		c.handler.OnEvent(ctx, &channel.Event{
+		c.handler.OnEvent(ctx, &types.Event{
 			EventType: "disconnected",
 			Timestamp: time.Now(),
 			Payload:   map[string]interface{}{"reason": err.Error()},
@@ -359,7 +358,7 @@ func (c *Client) handleEventCallback(ctx context.Context, frame *WsFrame) {
 	}
 
 	if c.handler != nil {
-		c.handler.OnEvent(ctx, &channel.Event{
+		c.handler.OnEvent(ctx, &types.Event{
 			EventType: evt.Event.EventType,
 			AccountID: "",
 			Timestamp: time.Unix(evt.CreateTime, 0),
@@ -523,22 +522,4 @@ func (c *ClientConfig) log(format string, args ...interface{}) {
 	if c.Logger != nil {
 		c.Logger.Printf(format, args...)
 	}
-}
-
-// ---------------------------------------------------------------------------
-// Internal: io.Reader for readFrame
-// ---------------------------------------------------------------------------
-
-// wsReader wraps a websocket.Conn as an io.Reader for frame reading.
-type wsReader struct {
-	conn *websocket.Conn
-}
-
-func (r *wsReader) Read(p []byte) (n int, err error) {
-	_, msg, err := r.conn.ReadMessage()
-	if err != nil {
-		return 0, err
-	}
-	copy(p, msg)
-	return len(msg), io.EOF
 }

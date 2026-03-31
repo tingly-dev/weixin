@@ -11,11 +11,11 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/tingly-dev/weixin"
 	"github.com/tingly-dev/weixin/api"
-	"github.com/tingly-dev/weixin/cdn"
-	"github.com/tingly-dev/weixin/crypto"
+	"github.com/tingly-dev/weixin/message/cdn"
 )
 
 // UploadedFileInfo contains information about an uploaded file.
@@ -98,7 +98,7 @@ func UploadMediaToCDN(ctx context.Context, filePath, toUserID, baseURL, cdnBaseU
 	filekeyHex := hex.EncodeToString(filekey)
 
 	// Calculate ciphertext size
-	fileSize := int64(crypto.AesEcbPaddedSize(int(rawSize)))
+	fileSize := int64(api.AesEcbPaddedSize(int(rawSize)))
 
 	// Create API client
 	client := api.NewClient(baseURL, botToken)
@@ -157,6 +157,8 @@ func UploadFileAttachmentToWeixin(ctx context.Context, filePath, toUserID, baseU
 // generateRandomID generates a random ID for temp files.
 func generateRandomID() string {
 	b := make([]byte, 8)
-	rand.Read(b)
+	if _, err := rand.Read(b); err != nil {
+		return "temp-" + fmt.Sprintf("%d", time.Now().UnixNano())
+	}
 	return hex.EncodeToString(b)
 }

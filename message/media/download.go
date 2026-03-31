@@ -8,8 +8,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/tingly-dev/weixin"
-	"github.com/tingly-dev/weixin/cdn"
+	"github.com/tingly-dev/weixin/api"
+	"github.com/tingly-dev/weixin/message/cdn"
 )
 
 const (
@@ -29,7 +29,7 @@ type InboundMediaOpts struct {
 
 // DownloadMediaFromItem downloads and decrypts media from a single MessageItem.
 // Returns populated InboundMediaOpts; fields are empty on failure or unsupported types.
-func DownloadMediaFromItem(ctx context.Context, item *weixin.MessageItem, cdnBaseURL, destDir string) (*InboundMediaOpts, error) {
+func DownloadMediaFromItem(ctx context.Context, item *api.MessageItem, cdnBaseURL, destDir string) (*InboundMediaOpts, error) {
 	result := &InboundMediaOpts{}
 
 	// Ensure destination directory exists
@@ -38,22 +38,22 @@ func DownloadMediaFromItem(ctx context.Context, item *weixin.MessageItem, cdnBas
 	}
 
 	switch item.Type {
-	case weixin.MessageItemTypeImage:
+	case api.MessageItemTypeImage:
 		if err := downloadImage(ctx, item.ImageItem, cdnBaseURL, destDir, result); err != nil {
 			return result, fmt.Errorf("download image: %w", err)
 		}
 
-	case weixin.MessageItemTypeVoice:
+	case api.MessageItemTypeVoice:
 		if err := downloadVoice(ctx, item.VoiceItem, cdnBaseURL, destDir, result); err != nil {
 			return result, fmt.Errorf("download voice: %w", err)
 		}
 
-	case weixin.MessageItemTypeFile:
+	case api.MessageItemTypeFile:
 		if err := downloadFile(ctx, item.FileItem, cdnBaseURL, destDir, result); err != nil {
 			return result, fmt.Errorf("download file: %w", err)
 		}
 
-	case weixin.MessageItemTypeVideo:
+	case api.MessageItemTypeVideo:
 		if err := downloadVideo(ctx, item.VideoItem, cdnBaseURL, destDir, result); err != nil {
 			return result, fmt.Errorf("download video: %w", err)
 		}
@@ -63,7 +63,7 @@ func DownloadMediaFromItem(ctx context.Context, item *weixin.MessageItem, cdnBas
 }
 
 // downloadImage downloads and decrypts an image item.
-func downloadImage(ctx context.Context, img *weixin.ImageItem, cdnBaseURL, destDir string, result *InboundMediaOpts) error {
+func downloadImage(ctx context.Context, img *api.ImageItem, cdnBaseURL, destDir string, result *InboundMediaOpts) error {
 	if img == nil || img.Media == nil || (img.Media.EncryptQueryParam == "" && img.Media.FullURL == "") {
 		return nil // No media to download
 	}
@@ -105,7 +105,7 @@ func downloadImage(ctx context.Context, img *weixin.ImageItem, cdnBaseURL, destD
 }
 
 // downloadVoice downloads and decrypts a voice item.
-func downloadVoice(ctx context.Context, voice *weixin.VoiceItem, cdnBaseURL, destDir string, result *InboundMediaOpts) error {
+func downloadVoice(ctx context.Context, voice *api.VoiceItem, cdnBaseURL, destDir string, result *InboundMediaOpts) error {
 	if voice == nil || voice.Media == nil || (voice.Media.EncryptQueryParam == "" && voice.Media.FullURL == "") || voice.Media.AESKey == "" {
 		return nil
 	}
@@ -129,7 +129,7 @@ func downloadVoice(ctx context.Context, voice *weixin.VoiceItem, cdnBaseURL, des
 }
 
 // downloadFile downloads and decrypts a file item.
-func downloadFile(ctx context.Context, fileItem *weixin.FileItem, cdnBaseURL, destDir string, result *InboundMediaOpts) error {
+func downloadFile(ctx context.Context, fileItem *api.FileItem, cdnBaseURL, destDir string, result *InboundMediaOpts) error {
 	if fileItem == nil || fileItem.Media == nil || (fileItem.Media.EncryptQueryParam == "" && fileItem.Media.FullURL == "") || fileItem.Media.AESKey == "" {
 		return nil
 	}
@@ -157,7 +157,7 @@ func downloadFile(ctx context.Context, fileItem *weixin.FileItem, cdnBaseURL, de
 }
 
 // downloadVideo downloads and decrypts a video item.
-func downloadVideo(ctx context.Context, video *weixin.VideoItem, cdnBaseURL, destDir string, result *InboundMediaOpts) error {
+func downloadVideo(ctx context.Context, video *api.VideoItem, cdnBaseURL, destDir string, result *InboundMediaOpts) error {
 	if video == nil || video.Media == nil || (video.Media.EncryptQueryParam == "" && video.Media.FullURL == "") || video.Media.AESKey == "" {
 		return nil
 	}
