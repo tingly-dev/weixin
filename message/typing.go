@@ -1,5 +1,5 @@
 // Package typing provides typing indicator support for WeChat.
-package session
+package message
 
 import (
 	"context"

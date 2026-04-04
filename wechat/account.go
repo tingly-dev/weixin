@@ -1,11 +1,13 @@
 // package weixin provides configuration management for the WeChat plugin.
-package weixin
+package wechat
 
 import (
 	"encoding/json"
 	"os"
 	"path/filepath"
 	"sync"
+
+	"github.com/tingly-dev/weixin/types"
 )
 
 // AccountManager manages WeChat account persistence.
@@ -40,7 +42,7 @@ func (m *AccountManager) accountPath(accountID string) string {
 }
 
 // Save saves an account to disk.
-func (m *AccountManager) Save(account *WeChatAccount) error {
+func (m *AccountManager) Save(account *types.WeChatAccount) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -54,7 +56,7 @@ func (m *AccountManager) Save(account *WeChatAccount) error {
 }
 
 // Get retrieves an account by ID.
-func (m *AccountManager) Get(accountID string) (*WeChatAccount, error) {
+func (m *AccountManager) Get(accountID string) (*types.WeChatAccount, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -64,7 +66,7 @@ func (m *AccountManager) Get(accountID string) (*WeChatAccount, error) {
 		return nil, err
 	}
 
-	var account WeChatAccount
+	var account types.WeChatAccount
 	if err := json.Unmarshal(data, &account); err != nil {
 		return nil, err
 	}

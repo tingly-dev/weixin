@@ -2,7 +2,7 @@
 //
 // This example shows the recommended way to integrate with WeChat:
 //
-//  1. Create a plugin and initialize its adapters
+//  1. Create a b and initialize its adapters
 //  2. Login via QR code using PairingAdapter (if no account exists)
 //  3. Poll messages using LongPollAdapter.GetUpdates
 //  4. Send echo replies using ActionsAdapter.Send
@@ -21,9 +21,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/tingly-dev/weixin"
-	"github.com/tingly-dev/weixin/api"
-	"github.com/tingly-dev/weixin/plugin"
+	api "github.com/tingly-dev/weixin/api"
+	"github.com/tingly-dev/weixin/types"
+	"github.com/tingly-dev/weixin/wechat"
 )
 
 const (
@@ -38,15 +38,15 @@ func main() {
 	log.Println("WeChat Echo Bot (channel abstraction)")
 	log.Println(strings.Repeat("=", 60))
 
-	// Create plugin with pwd as data directory and initialize adapters
-	config := &weixin.WeChatConfig{
+	// Create b with pwd as data directory and initialize adapters
+	config := &types.WeChatConfig{
 		BaseURL: defaultBaseURL,
 		BotType: "3",
 	}
-	plugin := plugin.NewPluginWithDataDir(config, ".")
+	b := wechat.NewWechatBotWithDataDir(config, ".")
 
 	// Resolve or create account
-	accountID, err := ensureAccount(plugin)
+	accountID, err := ensureAccount(b)
 	if err != nil {
 		log.Fatalf("Failed to get account: %v", err)
 	}
@@ -57,7 +57,7 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	go pollLoop(ctx, plugin, accountID)
+	go pollLoop(ctx, b, accountID)
 
 	log.Println(strings.Repeat("=", 60))
 	log.Println("Echo bot is running. Send a message to test.")
@@ -74,8 +74,8 @@ func main() {
 }
 
 // ensureAccount returns an existing account ID or runs QR login to create one.
-func ensureAccount(plugin *plugin.Plugin) (string, error) {
-	ids, err := plugin.Accounts().ListIDs()
+func ensureAccount(b *wechat.WechatBot) (string, error) {
+	ids, err := b.Accounts().ListIDs()
 	if err != nil {
 		return "", err
 	}
@@ -83,18 +83,18 @@ func ensureAccount(plugin *plugin.Plugin) (string, error) {
 		return ids[0], nil
 	}
 
-	return qrLogin(plugin)
+	return qrLogin(b)
 }
 
 // qrLogin performs QR code login via the PairingAdapter.
-func qrLogin(plugin *plugin.Plugin) (string, error) {
+func qrLogin(b *wechat.WechatBot) (string, error) {
 	ctx := context.Background()
 	accountID := "default"
 
 	log.Println("No account found. Starting QR code login...")
 
 	// Step 1: Get QR code
-	qrResult, err := plugin.Pairing().LoginWithQrStart(ctx, accountID)
+	qrResult, err := b.Pairing().LoginWithQrStart(ctx, accountID)
 	if err != nil {
 		return "", fmt.Errorf("get QR code: %w", err)
 	}
@@ -109,7 +109,7 @@ func qrLogin(plugin *plugin.Plugin) (string, error) {
 
 	// Step 2: Wait for confirmation
 	log.Println("Waiting for scan and confirmation...")
-	waitResult, err := plugin.Pairing().LoginWithQrWait(ctx, accountID, qrResult.QrCodeID)
+	waitResult, err := b.Pairing().LoginWithQrWait(ctx, accountID, qrResult.QrCodeID)
 	if err != nil {
 		return "", fmt.Errorf("QR login: %w", err)
 	}
@@ -122,7 +122,7 @@ func qrLogin(plugin *plugin.Plugin) (string, error) {
 }
 
 // pollLoop continuously polls for messages and echoes them back.
-func pollLoop(ctx context.Context, plugin *plugin.Plugin, accountID string) {
+func pollLoop(ctx context.Context, b *wechat.WechatBot, accountID string) {
 	syncBuf := ""
 	backoff := 2 * time.Second
 	const maxBackoff = 30 * time.Second
@@ -134,7 +134,7 @@ func pollLoop(ctx context.Context, plugin *plugin.Plugin, accountID string) {
 		default:
 		}
 
-		result, err := plugin.LongPoll().GetUpdates(ctx, &weixin.GetUpdatesRequest{
+		result, err := b.LongPoll().GetUpdates(ctx, &types.GetUpdatesRequest{
 			AccountID: accountID,
 			SyncBuf:   syncBuf,
 		})
@@ -166,13 +166,13 @@ func pollLoop(ctx context.Context, plugin *plugin.Plugin, accountID string) {
 		// Process each message
 		for i, msg := range result.Messages {
 			msg := msg // capture loop variable
-			go handleMessage(ctx, plugin, accountID, msg, i)
+			go handleMessage(ctx, b, accountID, msg, i)
 		}
 	}
 }
 
 // handleMessage processes a single message and sends an echo reply.
-func handleMessage(ctx context.Context, plugin *plugin.Plugin, accountID string, msg *weixin.Message, idx int) {
+func handleMessage(ctx context.Context, b *wechat.WechatBot, accountID string, msg *types.Message, idx int) {
 	log.Printf("[%s] Message #%d from %s: %q (attachments: %d)\n",
 		accountID, idx, msg.SenderID, msg.Text, len(msg.Attachments))
 
@@ -207,7 +207,7 @@ func handleMessage(ctx context.Context, plugin *plugin.Plugin, accountID string,
 		}
 	}
 
-	result, err := plugin.Actions().Send(ctx, &weixin.OutboundMessage{
+	result, err := b.Actions().Send(ctx, &types.OutboundMessage{
 		AccountID:    accountID,
 		To:           msg.To,
 		Text:         replyText,

@@ -123,3 +123,15 @@ func (g *GatewayAdapter) GetClient(accountID string) *Client {
 	defer g.mu.Unlock()
 	return g.clients[accountID]
 }
+
+// ListAccountIDs returns all configured account IDs.
+func (g *GatewayAdapter) ListAccountIDs() []string {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	var ids []string
+	for id := range g.clients {
+		ids = append(ids, id)
+	}
+	return ids
+}

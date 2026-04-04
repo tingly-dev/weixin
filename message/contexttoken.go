@@ -1,5 +1,5 @@
 // Package contexttoken provides context token management for WeChat channel.
-package contexttoken
+package message
 
 import (
 	"sync"

@@ -1,28 +1,28 @@
-package plugin
+package wechat
 
 import (
 	"context"
 	"fmt"
 
-	"github.com/tingly-dev/weixin"
 	"github.com/tingly-dev/weixin/api"
 	"github.com/tingly-dev/weixin/message"
+	"github.com/tingly-dev/weixin/types"
 )
 
-// actionsAdapter handles message actions for weixin.
-type actionsAdapter struct {
-	plugin *Plugin
+// ActionsAdapter handles message actions for weixin.
+type ActionsAdapter struct {
+	bot *WechatBot
 }
 
-// newActionsAdapter creates a new actions adapter.
-func newActionsAdapter(plugin *Plugin) *actionsAdapter {
-	return &actionsAdapter{plugin: plugin}
+// NewActionsAdapter creates a new actions adapter.
+func NewActionsAdapter(bot *WechatBot) *ActionsAdapter {
+	return &ActionsAdapter{bot: bot}
 }
 
 // Send sends a text message to weixin.
-func (a *actionsAdapter) Send(ctx context.Context, msg *weixin.OutboundMessage) (*weixin.OutboundResult, error) {
+func (a *ActionsAdapter) Send(ctx context.Context, msg *types.OutboundMessage) (*types.OutboundResult, error) {
 	// Get account
-	account, err := a.plugin.Accounts().Get(msg.AccountID)
+	account, err := a.bot.Accounts().Get(msg.AccountID)
 	if err != nil {
 		return nil, fmt.Errorf("get account: %w", err)
 	}
@@ -44,26 +44,26 @@ func (a *actionsAdapter) Send(ctx context.Context, msg *weixin.OutboundMessage) 
 
 	// Send message
 	if err := client.SendMessage(ctx, toUserID, contextToken, items); err != nil {
-		return &weixin.OutboundResult{
+		return &types.OutboundResult{
 			OK:    false,
 			Error: err.Error(),
 		}, err
 	}
 
-	return &weixin.OutboundResult{
+	return &types.OutboundResult{
 		OK:        true,
 		MessageID: "wc-" + account.ID,
 	}, nil
 }
 
 // SendMedia sends a media message to weixin.
-func (a *actionsAdapter) SendMedia(ctx context.Context, msg *weixin.OutboundMessage) (*weixin.OutboundResult, error) {
+func (a *ActionsAdapter) SendMedia(ctx context.Context, msg *types.OutboundMessage) (*types.OutboundResult, error) {
 	// For WeChat, media and text messages use the same endpoint
 	return a.Send(ctx, msg)
 }
 
 // SendStream is not supported by weixin.
-func (a *actionsAdapter) SendStream(ctx context.Context, msg *weixin.OutboundMessage) (*weixin.OutboundResult, error) {
+func (a *ActionsAdapter) SendStream(ctx context.Context, msg *types.OutboundMessage) (*types.OutboundResult, error) {
 	return nil, &Error{
 		Type:    ErrorNotSupported,
 		Message: "streaming not supported by WeChat ilink protocol",
@@ -71,7 +71,7 @@ func (a *actionsAdapter) SendStream(ctx context.Context, msg *weixin.OutboundMes
 }
 
 // React is not supported by weixin.
-func (a *actionsAdapter) React(ctx context.Context, reaction *weixin.Reaction) (*weixin.OutboundResult, error) {
+func (a *ActionsAdapter) React(ctx context.Context, reaction *types.Reaction) (*types.OutboundResult, error) {
 	return nil, &Error{
 		Type:    ErrorNotSupported,
 		Message: "reactions not supported by WeChat",
@@ -79,7 +79,7 @@ func (a *actionsAdapter) React(ctx context.Context, reaction *weixin.Reaction) (
 }
 
 // Edit is not supported by weixin.
-func (a *actionsAdapter) Edit(ctx context.Context, messageID string, text string) (*weixin.OutboundResult, error) {
+func (a *ActionsAdapter) Edit(ctx context.Context, messageID string, text string) (*types.OutboundResult, error) {
 	return nil, &Error{
 		Type:    ErrorNotSupported,
 		Message: "message editing not supported by WeChat",
@@ -87,7 +87,7 @@ func (a *actionsAdapter) Edit(ctx context.Context, messageID string, text string
 }
 
 // Unsend is not supported by weixin.
-func (a *actionsAdapter) Unsend(ctx context.Context, messageID string) (*weixin.OutboundResult, error) {
+func (a *ActionsAdapter) Unsend(ctx context.Context, messageID string) (*types.OutboundResult, error) {
 	return nil, &Error{
 		Type:    ErrorNotSupported,
 		Message: "message deletion not supported by WeChat",

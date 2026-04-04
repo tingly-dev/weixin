@@ -6,9 +6,10 @@ import (
 	"encoding/base64"
 	"fmt"
 	"math"
+	"path/filepath"
 	"sync"
 
-	"github.com/tingly-dev/weixin"
+	"github.com/tingly-dev/weixin/types"
 )
 
 // UploadAdapter implements UploadAdapter for WeCom AI Bot.
@@ -24,10 +25,10 @@ func NewUploadAdapter(gateway *GatewayAdapter) *UploadAdapter {
 
 // GetUploadURL returns a placeholder — WeCom doesn't use pre-signed URLs.
 // Uploads go directly over the WebSocket connection.
-func (u *UploadAdapter) GetUploadURL(ctx context.Context, req *weixin.UploadURLRequest) (*weixin.UploadURLResult, error) {
+func (u *UploadAdapter) GetUploadURL(ctx context.Context, req *types.UploadURLRequest) (*types.UploadURLResult, error) {
 	// WeCom uses WS-based chunked upload, not pre-signed URLs.
 	// This method returns the upload mechanism info via the result.
-	return &weixin.UploadURLResult{
+	return &types.UploadURLResult{
 		UploadParam: "wecom_ws_upload",
 		FileKey:     req.FileKey,
 	}, nil
@@ -36,7 +37,7 @@ func (u *UploadAdapter) GetUploadURL(ctx context.Context, req *weixin.UploadURLR
 // UploadMedia uploads a media file via the 3-step WS chunked protocol.
 // The file data is provided via MediaData in the request.
 // Returns the media_id which is valid for 3 days.
-func (u *UploadAdapter) UploadMedia(ctx context.Context, req *weixin.MediaUploadRequest) (*weixin.MediaUploadResult, error) {
+func (u *UploadAdapter) UploadMedia(ctx context.Context, req *types.MediaUploadRequest) (*types.MediaUploadResult, error) {
 	client := u.gateway.GetClient("")
 	if client == nil || !client.IsConnected() {
 		return nil, fmt.Errorf("wecom client not connected")
@@ -94,7 +95,7 @@ func (u *UploadAdapter) UploadMedia(ctx context.Context, req *weixin.MediaUpload
 		return nil, fmt.Errorf("upload finish: %w", err)
 	}
 
-	return &weixin.MediaUploadResult{
+	return &types.MediaUploadResult{
 		FileSize:     totalSize,
 		EncryptQuery: finishResult.MediaID, // store media_id in EncryptQuery for downstream use
 	}, nil
@@ -209,6 +210,26 @@ func (u *UploadAdapter) uploadFinish(ctx context.Context, client *Client, upload
 // Helpers
 // ---------------------------------------------------------------------------
 
+var (
+	imageExts = map[string]bool{
+		".png":  true,
+		".jpg":  true,
+		".jpeg": true,
+		".gif":  true,
+		".webp": true,
+	}
+	videoExts = map[string]bool{
+		".mp4": true,
+		".mov": true,
+		".avi": true,
+	}
+	audioExts = map[string]bool{
+		".silk": true,
+		".mp3":  true,
+		".wav":  true,
+	}
+)
+
 func detectMediaTypeFromFilename(filename string) string {
 	switch {
 	case isImageExt(filename):
@@ -228,16 +249,13 @@ func readFilePath(path string) ([]byte, error) {
 }
 
 func isImageExt(name string) bool {
-	ext := name[len(name)-4:]
-	return ext == ".png" || ext == ".jpg" || ext == "jpeg" || ext == ".gif" || ext == ".webp"
+	return imageExts[filepath.Ext(name)]
 }
 
 func isVideoExt(name string) bool {
-	ext := name[len(name)-4:]
-	return ext == ".mp4" || ext == ".mov" || ext == ".avi"
+	return videoExts[filepath.Ext(name)]
 }
 
 func isAudioExt(name string) bool {
-	ext := name[len(name)-5:]
-	return ext == ".silk" || ext[len(ext)-4:] == ".mp3" || ext[len(ext)-4:] == ".wav"
+	return audioExts[filepath.Ext(name)]
 }

@@ -5,9 +5,7 @@ import (
 	"encoding/base64"
 	"fmt"
 
-	"github.com/tingly-dev/weixin"
 	"github.com/tingly-dev/weixin/api"
-	"github.com/tingly-dev/weixin/message/markdown"
 	"github.com/tingly-dev/weixin/message/media"
 	"github.com/tingly-dev/weixin/types"
 )
@@ -24,7 +22,7 @@ func ConvertToOutboundMessage(msg *types.OutboundMessage) (toUserID, contextToke
 // BuildTextItem creates a text MessageItem.
 // Converts markdown to plain text before creating the item.
 func BuildTextItem(text string) api.MessageItem {
-	plainText := markdown.ToPlainText(text)
+	plainText := ToPlainText(text)
 	return api.MessageItem{
 		Type: api.MessageItemTypeText,
 		TextItem: &api.TextItem{
@@ -40,7 +38,7 @@ func ConvertOutboundMessageToList(msg *types.OutboundMessage) []api.MessageItem 
 
 	// Add text item if present (convert markdown to plain text)
 	if msg.Text != "" {
-		plainText := markdown.ToPlainText(msg.Text)
+		plainText := ToPlainText(msg.Text)
 		items = append(items, api.MessageItem{
 			Type: api.MessageItemTypeText,
 			TextItem: &api.TextItem{
@@ -154,13 +152,13 @@ func HasMedia(msg *types.OutboundMessage) bool {
 func GetMediaType(msg *types.OutboundMessage) int {
 	switch msg.ContentType {
 	case "image":
-		return weixin.UploadMediaTypeImage
+		return types.UploadMediaTypeImage
 	case "video":
-		return weixin.UploadMediaTypeVideo
+		return types.UploadMediaTypeVideo
 	case "audio", "voice":
-		return weixin.UploadMediaTypeVoice
+		return types.UploadMediaTypeVoice
 	default:
-		return weixin.UploadMediaTypeFile
+		return types.UploadMediaTypeFile
 	}
 }
 

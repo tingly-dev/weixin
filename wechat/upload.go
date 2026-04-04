@@ -1,28 +1,28 @@
-package plugin
+package wechat
 
 import (
 	"context"
 	"fmt"
 
-	"github.com/tingly-dev/weixin"
 	"github.com/tingly-dev/weixin/api"
 	"github.com/tingly-dev/weixin/message/media"
+	"github.com/tingly-dev/weixin/types"
 )
 
-// uploadAdapter handles media file uploads to WeChat CDN.
-type uploadAdapter struct {
-	plugin *Plugin
+// UploadAdapter handles media file uploads to WeChat CDN.
+type UploadAdapter struct {
+	bot *WechatBot
 }
 
-// newUploadAdapter creates a new upload adapter.
-func newUploadAdapter(plugin *Plugin) *uploadAdapter {
-	return &uploadAdapter{plugin: plugin}
+// NewUploadAdapter creates a new upload adapter.
+func NewUploadAdapter(bot *WechatBot) *UploadAdapter {
+	return &UploadAdapter{bot: bot}
 }
 
 // GetUploadURL retrieves a pre-signed URL for uploading media.
-func (a *uploadAdapter) GetUploadURL(ctx context.Context, req *weixin.UploadURLRequest) (*weixin.UploadURLResult, error) {
+func (a *UploadAdapter) GetUploadURL(ctx context.Context, req *types.UploadURLRequest) (*types.UploadURLResult, error) {
 	// Get account
-	account, err := a.plugin.Accounts().Get(req.FileKey) // FileKey is used as accountID here
+	account, err := a.bot.Accounts().Get(req.FileKey) // FileKey is used as accountID here
 	if err != nil {
 		return nil, fmt.Errorf("get account: %w", err)
 	}
@@ -46,21 +46,21 @@ func (a *uploadAdapter) GetUploadURL(ctx context.Context, req *weixin.UploadURLR
 		return nil, fmt.Errorf("get upload URL: %w", err)
 	}
 
-	return &weixin.UploadURLResult{
+	return &types.UploadURLResult{
 		UploadParam: resp.UploadParam,
 	}, nil
 }
 
 // UploadMedia uploads a media file and returns the reference.
-func (a *uploadAdapter) UploadMedia(ctx context.Context, req *weixin.MediaUploadRequest) (*weixin.MediaUploadResult, error) {
+func (a *UploadAdapter) UploadMedia(ctx context.Context, req *types.MediaUploadRequest) (*types.MediaUploadResult, error) {
 	// Use the UploadMediaToCDN function which handles the full pipeline
 	// First, get an account to use
-	accounts, err := a.plugin.Accounts().ListIDs()
+	accounts, err := a.bot.Accounts().ListIDs()
 	if err != nil || len(accounts) == 0 {
 		return nil, fmt.Errorf("no accounts available")
 	}
 
-	account, err := a.plugin.Accounts().Get(accounts[0])
+	account, err := a.bot.Accounts().Get(accounts[0])
 	if err != nil {
 		return nil, fmt.Errorf("get account: %w", err)
 	}
@@ -84,7 +84,7 @@ func (a *uploadAdapter) UploadMedia(ctx context.Context, req *weixin.MediaUpload
 		return nil, fmt.Errorf("upload media: %w", err)
 	}
 
-	return &weixin.MediaUploadResult{
+	return &types.MediaUploadResult{
 		FileKey:      uploaded.FileKey,
 		FileSize:     uploaded.FileSize,
 		EncryptKey:   uploaded.AESKey,
@@ -96,12 +96,12 @@ func (a *uploadAdapter) UploadMedia(ctx context.Context, req *weixin.MediaUpload
 func getMediaType(mediaType string) int {
 	switch mediaType {
 	case "image":
-		return weixin.UploadMediaTypeImage
+		return types.UploadMediaTypeImage
 	case "video":
-		return weixin.UploadMediaTypeVideo
+		return types.UploadMediaTypeVideo
 	case "audio", "voice":
-		return weixin.UploadMediaTypeVoice
+		return types.UploadMediaTypeVoice
 	default:
-		return weixin.UploadMediaTypeFile
+		return types.UploadMediaTypeFile
 	}
 }

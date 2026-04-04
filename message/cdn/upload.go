@@ -4,6 +4,7 @@ package cdn
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -78,7 +79,9 @@ func uploadToCdn(ctx context.Context, uploadURL string, ciphertext []byte) (stri
 	if err != nil {
 		return "", fmt.Errorf("HTTP request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	// Check status code
 	if resp.StatusCode >= 400 && resp.StatusCode < 500 {
@@ -135,6 +138,6 @@ func (e *ServerError) Error() string {
 
 // isClientError checks if the error is a client error.
 func isClientError(err error) bool {
-	_, ok := err.(*ClientError)
-	return ok
+	var clientErr *ClientError
+	return errors.As(err, &clientErr)
 }

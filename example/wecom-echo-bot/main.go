@@ -2,9 +2,10 @@
 //
 // This example shows the recommended way to integrate with WeCom AI Bot:
 //
-//  1. Create a GatewayAdapter and configure it with bot credentials
-//  2. Set an EventHandler to receive push messages via WebSocket
-//  3. Send echo replies using ActionsAdapter.Send
+//  1. Create a WecomBot
+//  2. Configure account credentials (BotID/Secret)
+//  3. Set an EventHandler to receive push messages via WebSocket
+//  4. Send echo replies using ActionsAdapter.Send
 //
 // WeCom uses WebSocket (push-based), not HTTP long-polling.
 // All connection lifecycle (heartbeat, reconnect) is handled by the adapters.
@@ -19,7 +20,7 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/tingly-dev/weixin"
+	"github.com/tingly-dev/weixin/types"
 	"github.com/tingly-dev/weixin/wecom"
 )
 
@@ -38,26 +39,27 @@ func main() {
 
 	accountID := "default"
 
-	// Create gateway adapter and configure account
-	gateway := wecom.NewGatewayAdapter(nil)
-	gateway.SetAccountConfig(accountID, wecom.ClientConfig{
+	// Create WeCom bot
+	bot := wecom.NewWecomBot(&wecom.WecomConfig{
+		Logger: nil,
+	})
+
+	// Configure account credentials
+	bot.Gateway().SetAccountConfig(accountID, wecom.ClientConfig{
 		BotID:  botID,
 		Secret: secret,
 	})
 
-	// Create actions adapter
-	actions := wecom.NewActionsAdapter(gateway)
-
 	// Set message handler
-	handler := &echoHandler{actions: actions, accountID: accountID}
-	gateway.SetEventHandler(accountID, handler)
+	handler := &echoHandler{bot: bot, accountID: accountID}
+	bot.Gateway().SetEventHandler(accountID, handler)
 
 	// Connect
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	log.Printf("Connecting to WeCom WebSocket (bot: %s)...\n", botID)
-	if err := gateway.StartAccount(ctx, accountID); err != nil {
+	if err := bot.Gateway().StartAccount(ctx, accountID); err != nil {
 		log.Fatalf("Failed to connect: %v", err)
 	}
 
@@ -71,18 +73,18 @@ func main() {
 	<-sigChan
 
 	log.Println("Shutting down...")
-	gateway.StopAccount(ctx, accountID)
+	bot.Gateway().StopAccount(ctx, accountID)
 	log.Println("Goodbye!")
 }
 
-// echoHandler implements channel.EventHandler for the echo bot.
+// echoHandler implements types.EventHandler for the echo bot.
 type echoHandler struct {
-	actions   *wecom.ActionsAdapter
+	bot       *wecom.WecomBot
 	accountID string
 }
 
 // OnMessage handles incoming messages and echoes them back.
-func (h *echoHandler) OnMessage(ctx context.Context, msg *weixin.Message) error {
+func (h *echoHandler) OnMessage(ctx context.Context, msg *types.Message) error {
 	log.Printf("Message from %s: %q (attachments: %d)\n",
 		msg.SenderID, msg.Text, len(msg.Attachments))
 
@@ -106,7 +108,7 @@ func (h *echoHandler) OnMessage(ctx context.Context, msg *weixin.Message) error 
 		return nil
 	}
 
-	result, err := h.actions.Send(ctx, &weixin.OutboundMessage{
+	result, err := h.bot.Actions().Send(ctx, &types.OutboundMessage{
 		AccountID:    h.accountID,
 		To:           msg.To,
 		Text:         replyText,
@@ -124,17 +126,17 @@ func (h *echoHandler) OnMessage(ctx context.Context, msg *weixin.Message) error 
 }
 
 // OnReaction handles reactions (not used).
-func (h *echoHandler) OnReaction(ctx context.Context, reaction *weixin.Reaction) error {
+func (h *echoHandler) OnReaction(ctx context.Context, reaction *types.Reaction) error {
 	return nil
 }
 
 // OnEdit handles message edits (not supported by WeCom).
-func (h *echoHandler) OnEdit(ctx context.Context, msg *weixin.Message) error {
+func (h *echoHandler) OnEdit(ctx context.Context, msg *types.Message) error {
 	return nil
 }
 
 // OnEvent handles protocol events (enter_chat, card_click, etc.).
-func (h *echoHandler) OnEvent(ctx context.Context, event *weixin.Event) {
+func (h *echoHandler) OnEvent(ctx context.Context, event *types.Event) {
 	log.Printf("Event: %s (payload: %v)\n", event.EventType, event.Payload)
 }
 

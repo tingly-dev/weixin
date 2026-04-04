@@ -1,40 +1,38 @@
-package plugin
+package wechat
 
 import (
 	"context"
 	"fmt"
 	"sync"
 
-	"github.com/tingly-dev/weixin"
-	"github.com/tingly-dev/weixin/api"
+	client "github.com/tingly-dev/weixin/api"
 	"github.com/tingly-dev/weixin/message"
-	"github.com/tingly-dev/weixin/message/contexttoken"
-	"github.com/tingly-dev/weixin/message/session"
 	"github.com/tingly-dev/weixin/storage"
+	"github.com/tingly-dev/weixin/types"
 )
 
-// longPollAdapter handles long-polling message synchronization for weixin.
-type longPollAdapter struct {
-	plugin   *Plugin
+// LongPollAdapter handles long-polling message synchronization for weixin.
+type LongPollAdapter struct {
+	bot      *WechatBot
 	monitors map[string]*message.Monitor // accountID -> monitor
 	mu       sync.RWMutex
 }
 
-// newLongPollAdapter creates a new long-poll adapter.
-func newLongPollAdapter(plugin *Plugin) *longPollAdapter {
-	return &longPollAdapter{
-		plugin:   plugin,
+// NewLongPollAdapter creates a new long-poll adapter.
+func NewLongPollAdapter(bot *WechatBot) *LongPollAdapter {
+	return &LongPollAdapter{
+		bot:      bot,
 		monitors: make(map[string]*message.Monitor),
 	}
 }
 
 // GetUpdates fetches new messages using long-polling.
 // This is a single poll request - for continuous monitoring use StartMonitoring.
-func (a *longPollAdapter) GetUpdates(ctx context.Context, req *weixin.GetUpdatesRequest) (*weixin.GetUpdatesResult, error) {
+func (a *LongPollAdapter) GetUpdates(ctx context.Context, req *types.GetUpdatesRequest) (*types.GetUpdatesResult, error) {
 	fmt.Printf("[weixin] LongPollAdapter.GetUpdates called: accountID=%s, syncBuf=%q\n", req.AccountID, req.SyncBuf)
 
 	// Get account
-	account, err := a.plugin.Accounts().Get(req.AccountID)
+	account, err := a.bot.Accounts().Get(req.AccountID)
 	if err != nil {
 		fmt.Printf("[weixin] GetUpdates failed to get account: %v\n", err)
 		return nil, fmt.Errorf("get account: %w", err)
@@ -50,16 +48,16 @@ func (a *longPollAdapter) GetUpdates(ctx context.Context, req *weixin.GetUpdates
 	}
 
 	// Check session guard
-	if err := session.AssertSessionActive(req.AccountID); err != nil {
+	if err := message.AssertSessionActive(req.AccountID); err != nil {
 		fmt.Printf("[weixin] Session guard blocked: %v\n", err)
-		return &weixin.GetUpdatesResult{
-			ErrCode: session.SessionExpiredErrCode,
+		return &types.GetUpdatesResult{
+			ErrCode: message.SessionExpiredErrCode,
 			ErrMsg:  err.Error(),
 		}, nil
 	}
 
 	// Create API client
-	client := api.NewClient(account.BaseURL, account.BotToken)
+	c := client.NewClient(account.BaseURL, account.BotToken)
 	fmt.Printf("[weixin] Calling API GetUpdates: baseURL=%q\n", account.BaseURL)
 
 	// Load sync buffer if not provided
@@ -70,7 +68,7 @@ func (a *longPollAdapter) GetUpdates(ctx context.Context, req *weixin.GetUpdates
 	}
 
 	// Call getUpdates with timeout
-	resp, err := client.GetUpdates(ctx, syncBuf)
+	resp, err := c.GetUpdates(ctx, syncBuf)
 	if err != nil {
 		fmt.Printf("[weixin] API GetUpdates error: %v\n", err)
 		return nil, fmt.Errorf("get updates: %w", err)
@@ -80,9 +78,9 @@ func (a *longPollAdapter) GetUpdates(ctx context.Context, req *weixin.GetUpdates
 		resp.Ret, resp.ErrCode, len(resp.Messages), resp.GetUpdatesBuf)
 
 	// Check for session expiration
-	if resp.ErrCode == session.SessionExpiredErrCode {
-		session.PauseSession(req.AccountID)
-		return &weixin.GetUpdatesResult{
+	if resp.ErrCode == message.SessionExpiredErrCode {
+		message.PauseSession(req.AccountID)
+		return &types.GetUpdatesResult{
 			ErrCode: int(resp.ErrCode),
 			ErrMsg:  resp.ErrMsg,
 		}, nil
@@ -97,13 +95,13 @@ func (a *longPollAdapter) GetUpdates(ctx context.Context, req *weixin.GetUpdates
 	}
 
 	// Convert WeixinMessage to channel.Message
-	messages := make([]*weixin.Message, 0, len(resp.Messages))
+	messages := make([]*types.Message, 0, len(resp.Messages))
 	for _, msg := range resp.Messages {
 		// Only process USER messages (ignore BOT messages)
-		if msg.MessageType == api.MessageTypeUser {
+		if msg.MessageType == client.MessageTypeUser {
 			// Save context token for replies
 			if msg.ContextToken != "" && msg.FromUserID != "" {
-				contexttoken.SetContextToken(req.AccountID, msg.FromUserID, msg.ContextToken)
+				message.SetContextToken(req.AccountID, msg.FromUserID, msg.ContextToken)
 			}
 
 			channelMsg := message.ConvertInboundMessage(&msg, req.AccountID)
@@ -119,7 +117,7 @@ func (a *longPollAdapter) GetUpdates(ctx context.Context, req *weixin.GetUpdates
 		}
 	}
 
-	return &weixin.GetUpdatesResult{
+	return &types.GetUpdatesResult{
 		Messages:           messages,
 		SyncBuf:            resp.GetUpdatesBuf,
 		LongPollingTimeout: resp.LongPollingTimeoutMs,
@@ -128,7 +126,7 @@ func (a *longPollAdapter) GetUpdates(ctx context.Context, req *weixin.GetUpdates
 }
 
 // StartMonitoring starts continuous monitoring for an account.
-func (a *longPollAdapter) StartMonitoring(ctx context.Context, accountID string, handler func(ctx context.Context, msg *api.WeixinMessage) error) error {
+func (a *LongPollAdapter) StartMonitoring(ctx context.Context, accountID string, handler func(ctx context.Context, msg *client.WeixinMessage) error) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
@@ -138,7 +136,7 @@ func (a *longPollAdapter) StartMonitoring(ctx context.Context, accountID string,
 	}
 
 	// Get account
-	account, err := a.plugin.Accounts().Get(accountID)
+	account, err := a.bot.Accounts().Get(accountID)
 	if err != nil {
 		return fmt.Errorf("get account: %w", err)
 	}
@@ -163,7 +161,7 @@ func (a *longPollAdapter) StartMonitoring(ctx context.Context, accountID string,
 }
 
 // StopMonitoring stops continuous monitoring for an account.
-func (a *longPollAdapter) StopMonitoring(accountID string) {
+func (a *LongPollAdapter) StopMonitoring(accountID string) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
@@ -174,7 +172,7 @@ func (a *longPollAdapter) StopMonitoring(accountID string) {
 }
 
 // GetMonitor returns the monitor for an account (if running).
-func (a *longPollAdapter) GetMonitor(accountID string) *message.Monitor {
+func (a *LongPollAdapter) GetMonitor(accountID string) *message.Monitor {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
 	return a.monitors[accountID]

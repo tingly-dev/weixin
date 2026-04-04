@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/tingly-dev/weixin/plugin"
 	"github.com/tingly-dev/weixin/types"
+	"github.com/tingly-dev/weixin/wechat"
 )
 
 // ActionsAdapter implements ActionsAdapter for WeCom AI Bot.
@@ -107,24 +107,24 @@ func (a *ActionsAdapter) SendMedia(ctx context.Context, msg *types.OutboundMessa
 
 // React is not supported by WeCom AI Bot.
 func (a *ActionsAdapter) React(ctx context.Context, reaction *types.Reaction) (*types.OutboundResult, error) {
-	return nil, &plugin.Error{
-		Type:    plugin.ErrorNotSupported,
+	return nil, &wechat.Error{
+		Type:    wechat.ErrorNotSupported,
 		Message: "reactions not supported by WeCom AI Bot",
 	}
 }
 
 // Edit is not supported by WeCom AI Bot.
 func (a *ActionsAdapter) Edit(ctx context.Context, messageID string, text string) (*types.OutboundResult, error) {
-	return nil, &plugin.Error{
-		Type:    plugin.ErrorNotSupported,
+	return nil, &wechat.Error{
+		Type:    wechat.ErrorNotSupported,
 		Message: "message editing not supported by WeCom AI Bot",
 	}
 }
 
 // Unsend is not supported by WeCom AI Bot.
 func (a *ActionsAdapter) Unsend(ctx context.Context, messageID string) (*types.OutboundResult, error) {
-	return nil, &plugin.Error{
-		Type:    plugin.ErrorNotSupported,
+	return nil, &wechat.Error{
+		Type:    wechat.ErrorNotSupported,
 		Message: "message deletion not supported by WeCom AI Bot",
 	}
 }

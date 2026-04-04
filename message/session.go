@@ -1,5 +1,5 @@
 // Package sessionguard provides session pause mechanism for WeChat channel.
-package session
+package message
 
 import (
 	"fmt"
@@ -92,9 +92,4 @@ type SessionPausedError struct {
 func (e *SessionPausedError) Error() string {
 	return fmt.Sprintf("session paused for accountId=%s, %d min remaining (errcode %d)",
 		e.AccountID, int(e.Remaining.Minutes()), e.ErrCode)
-}
-
-// ResetForTest clears internal state - only for tests.
-func ResetForTest() {
-	pauseUntilMap = sync.Map{}
 }

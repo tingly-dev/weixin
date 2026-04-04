@@ -1,5 +1,5 @@
 // Package weixin provides adapter interfaces for WeChat/WeCom implementations.
-package weixin
+package types
 
 import (
 	"context"

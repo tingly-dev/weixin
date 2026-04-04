@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/tingly-dev/weixin/api"
-	"github.com/tingly-dev/weixin/message/session"
 	"github.com/tingly-dev/weixin/storage"
 )
 
@@ -129,8 +128,8 @@ func (m *Monitor) monitorLoop(ctx context.Context) {
 		}
 
 		// Check for session pause
-		if session.IsSessionPaused(m.accountID) {
-			remaining := session.GetRemainingPauseMs(m.accountID)
+		if IsSessionPaused(m.accountID) {
+			remaining := GetRemainingPauseMs(m.accountID)
 			log.Printf("[weixin] session paused for %v, waiting...", remaining)
 
 			select {
@@ -224,7 +223,7 @@ func (m *Monitor) handleError(err error) {
 
 	// Check for session expiration error
 	if isSessionExpiredError(err) {
-		session.PauseSession(m.accountID)
+		PauseSession(m.accountID)
 		m.consecutiveFail = 0
 		return
 	}
@@ -238,7 +237,7 @@ func (m *Monitor) handleError(err error) {
 
 // isSessionExpiredError checks if the error indicates a session expiration.
 func isSessionExpiredError(err error) bool {
-	return err != nil && err.Error() == fmt.Sprintf("ret=%d", session.SessionExpiredErrCode)
+	return err != nil && err.Error() == fmt.Sprintf("ret=%d", SessionExpiredErrCode)
 }
 
 // GetSyncBuf returns the current sync buffer.

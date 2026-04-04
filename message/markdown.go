@@ -1,5 +1,6 @@
-// Package markdown provides markdown to plain text conversion.
-package markdown
+package message
+
+// provides markdown to plain text conversion.
 
 import (
 	"regexp"

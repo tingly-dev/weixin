@@ -212,3 +212,32 @@ type Event struct {
 	Timestamp time.Time              `json:"timestamp"`
 	Payload   map[string]interface{} `json:"payload,omitempty"`
 }
+
+// WeChatAccount represents a configured WeChat account.
+type WeChatAccount struct {
+	ID          string    `json:"id"`
+	Name        string    `json:"name,omitempty"`
+	BotToken    string    `json:"botToken"`
+	BotID       string    `json:"botId"`
+	UserID      string    `json:"userId"`
+	BaseURL     string    `json:"baseUrl"`
+	CDNBaseURL  string    `json:"cdnBaseUrl,omitempty"` // CDN base URL for media uploads/downloads
+	Enabled     bool      `json:"enabled"`
+	Configured  bool      `json:"configured"`
+	CreatedAt   time.Time `json:"createdAt"`
+	LastLoginAt time.Time `json:"lastLoginAt"`
+}
+
+// WeChatConfig holds plugin configuration.
+type WeChatConfig struct {
+	BaseURL string // Default API base URL
+	BotType string // Bot type for QR login (default: "3")
+}
+
+// Upload media type constants.
+const (
+	UploadMediaTypeImage = iota + 1
+	UploadMediaTypeVideo
+	UploadMediaTypeFile
+	UploadMediaTypeVoice
+)

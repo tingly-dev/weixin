@@ -1,20 +1,22 @@
-package plugin
+package wechat
 
-import "github.com/tingly-dev/weixin"
+import (
+	"github.com/tingly-dev/weixin/types"
+)
 
-// configAdapter implements ConfigAdapter using the plugin's account manager.
-type configAdapter struct {
-	plugin *Plugin
+// ConfigAdapter implements ConfigAdapter using the bot's account manager.
+type ConfigAdapter struct {
+	Bot *WechatBot
 }
 
 // ListAccountIDs returns all configured WeChat account IDs.
-func (a *configAdapter) ListAccountIDs() ([]string, error) {
-	return a.plugin.Accounts().ListIDs()
+func (a *ConfigAdapter) ListAccountIDs() ([]string, error) {
+	return a.Bot.Accounts().ListIDs()
 }
 
 // ResolveAccount resolves a WeChat account by ID.
-func (a *configAdapter) ResolveAccount(accountID string) (*weixin.Account, error) {
-	wcAccount, err := a.plugin.Accounts().Get(accountID)
+func (a *ConfigAdapter) ResolveAccount(accountID string) (*types.Account, error) {
+	wcAccount, err := a.Bot.Accounts().Get(accountID)
 	if err != nil {
 		return nil, &Error{
 			Type:    ErrorAccountNotFound,
@@ -22,7 +24,7 @@ func (a *configAdapter) ResolveAccount(accountID string) (*weixin.Account, error
 		}
 	}
 
-	return &weixin.Account{
+	return &types.Account{
 		ID:         wcAccount.ID,
 		Name:       wcAccount.Name,
 		Enabled:    wcAccount.Enabled,
@@ -36,8 +38,8 @@ func (a *configAdapter) ResolveAccount(accountID string) (*weixin.Account, error
 }
 
 // DefaultAccount returns the default WeChat account ID.
-func (a *configAdapter) DefaultAccount() (string, error) {
-	ids, err := a.plugin.Accounts().ListIDs()
+func (a *ConfigAdapter) DefaultAccount() (string, error) {
+	ids, err := a.Bot.Accounts().ListIDs()
 	if err != nil {
 		return "", err
 	}
@@ -51,8 +53,8 @@ func (a *configAdapter) DefaultAccount() (string, error) {
 }
 
 // IsEnabled checks if a WeChat account is enabled.
-func (a *configAdapter) IsEnabled(accountID string) (bool, error) {
-	account, err := a.plugin.Accounts().Get(accountID)
+func (a *ConfigAdapter) IsEnabled(accountID string) (bool, error) {
+	account, err := a.Bot.Accounts().Get(accountID)
 	if err != nil {
 		return false, err
 	}
@@ -60,8 +62,8 @@ func (a *configAdapter) IsEnabled(accountID string) (bool, error) {
 }
 
 // IsConfigured checks if a WeChat account is configured.
-func (a *configAdapter) IsConfigured(accountID string) (bool, error) {
-	account, err := a.plugin.Accounts().Get(accountID)
+func (a *ConfigAdapter) IsConfigured(accountID string) (bool, error) {
+	account, err := a.Bot.Accounts().Get(accountID)
 	if err != nil {
 		return false, err
 	}

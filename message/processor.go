@@ -7,7 +7,6 @@ import (
 
 	"github.com/tingly-dev/weixin/api"
 	"github.com/tingly-dev/weixin/message/cdn"
-	"github.com/tingly-dev/weixin/message/session"
 	"github.com/tingly-dev/weixin/storage"
 )
 
@@ -86,8 +85,8 @@ func (p *MessageProcessor) SetOnDownload(handler func(mediaType, encryptedParam,
 // Process handles a single inbound message through the complete pipeline.
 func (p *MessageProcessor) Process(ctx context.Context, msg *api.WeixinMessage) error {
 	// 1. Check session guard
-	if session.IsSessionPaused(p.accountID) {
-		remaining := session.GetRemainingPauseMs(p.accountID)
+	if IsSessionPaused(p.accountID) {
+		remaining := GetRemainingPauseMs(p.accountID)
 		return fmt.Errorf("session paused for %v", remaining)
 	}
 

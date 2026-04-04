@@ -13,9 +13,9 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/tingly-dev/weixin"
 	"github.com/tingly-dev/weixin/api"
 	"github.com/tingly-dev/weixin/message/cdn"
+	"github.com/tingly-dev/weixin/types"
 )
 
 // UploadedFileInfo contains information about an uploaded file.
@@ -44,7 +44,9 @@ func DownloadRemoteMediaToTemp(ctx context.Context, url, destDir string) (string
 	if err != nil {
 		return "", fmt.Errorf("download: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("download failed: %d %s", resp.StatusCode, resp.Status)
@@ -141,17 +143,17 @@ func UploadMediaToCDN(ctx context.Context, filePath, toUserID, baseURL, cdnBaseU
 
 // UploadImageToWeixin uploads an image file to WeChat CDN.
 func UploadImageToWeixin(ctx context.Context, filePath, toUserID, baseURL, cdnBaseURL, botToken string) (*UploadedFileInfo, error) {
-	return UploadMediaToCDN(ctx, filePath, toUserID, baseURL, cdnBaseURL, botToken, weixin.UploadMediaTypeImage)
+	return UploadMediaToCDN(ctx, filePath, toUserID, baseURL, cdnBaseURL, botToken, types.UploadMediaTypeImage)
 }
 
 // UploadVideoToWeixin uploads a video file to WeChat CDN.
 func UploadVideoToWeixin(ctx context.Context, filePath, toUserID, baseURL, cdnBaseURL, botToken string) (*UploadedFileInfo, error) {
-	return UploadMediaToCDN(ctx, filePath, toUserID, baseURL, cdnBaseURL, botToken, weixin.UploadMediaTypeVideo)
+	return UploadMediaToCDN(ctx, filePath, toUserID, baseURL, cdnBaseURL, botToken, types.UploadMediaTypeVideo)
 }
 
 // UploadFileAttachmentToWeixin uploads a file attachment to WeChat CDN.
 func UploadFileAttachmentToWeixin(ctx context.Context, filePath, toUserID, baseURL, cdnBaseURL, botToken string) (*UploadedFileInfo, error) {
-	return UploadMediaToCDN(ctx, filePath, toUserID, baseURL, cdnBaseURL, botToken, weixin.UploadMediaTypeFile)
+	return UploadMediaToCDN(ctx, filePath, toUserID, baseURL, cdnBaseURL, botToken, types.UploadMediaTypeFile)
 }
 
 // generateRandomID generates a random ID for temp files.
