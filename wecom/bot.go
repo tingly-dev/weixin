@@ -2,10 +2,11 @@
 package wecom
 
 import (
+	"context"
 	"log"
 
+	"github.com/tingly-dev/weixin/bot"
 	"github.com/tingly-dev/weixin/types"
-	"github.com/tingly-dev/weixin/wechat"
 )
 
 // WecomConfig holds WeCom-specific configuration.
@@ -15,12 +16,13 @@ type WecomConfig struct {
 }
 
 // WecomBot is the WeCom AI Bot.
+// One bot manages one WebSocket client connection.
 type WecomBot struct {
-	*wechat.BaseBot
-	config  *WecomConfig
-	gateway *GatewayAdapter
-	actions *ActionsAdapter
-	upload  *UploadAdapter
+	*bot.BaseBot
+	config       *WecomConfig
+	client       *Client // WebSocket client
+	running      bool
+	eventHandler types.EventHandler // Stored event handler to apply after Connect
 }
 
 // NewWecomBot creates a new WeCom bot.
@@ -33,15 +35,8 @@ func NewWecomBot(config *WecomConfig) *WecomBot {
 		config: config,
 	}
 
-	// Create gateway with logger
-	b.gateway = NewGatewayAdapter(config.Logger)
-
-	// Create adapters
-	b.actions = NewActionsAdapter(b.gateway)
-	b.upload = NewUploadAdapter(b.gateway)
-
 	// Create base bot with metadata
-	meta := &wechat.Meta{
+	meta := &types.Meta{
 		Label:          "WeCom",
 		SelectionLabel: "WeCom (Enterprise WeChat)",
 		DetailLabel:    "WeCom AI Bot",
@@ -58,89 +53,223 @@ func NewWecomBot(config *WecomConfig) *WecomBot {
 		Streaming: true,
 	}
 
-	b.BaseBot = wechat.NewBasePlugin(meta, capabilities, &wecomConfigAdapter{bot: b})
-	b.SetActions(b.actions)
-	b.SetGateway(b.gateway)
-	b.SetUpload(b.upload)
+	b.BaseBot = bot.NewBaseBot(meta, capabilities)
 
 	return b
 }
 
-// Gateway returns the gateway adapter for connection management.
-func (b *WecomBot) Gateway() *GatewayAdapter {
-	return b.gateway
-}
-
-// Actions returns the actions adapter for sending messages.
-func (b *WecomBot) Actions() *ActionsAdapter {
-	return b.actions
-}
-
-// Upload returns the upload adapter for media uploads.
-func (b *WecomBot) Upload() *UploadAdapter {
-	return b.upload
-}
-
-// WecomConfig returns the bot configuration.
-func (b *WecomBot) WecomConfig() *WecomConfig {
+// Config returns the bot configuration.
+func (b *WecomBot) Config() *WecomConfig {
 	return b.config
 }
 
-// wecomConfigAdapter implements types.ConfigAdapter for WeCom.
-// WeCom uses pre-configured BotID/Secret credentials, not dynamic account provisioning.
-type wecomConfigAdapter struct {
-	bot *WecomBot
+// Client returns the WebSocket client.
+func (b *WecomBot) Client() *Client {
+	return b.client
 }
 
-// ListAccountIDs returns all configured account IDs from the gateway.
-func (a *wecomConfigAdapter) ListAccountIDs() ([]string, error) {
-	ids := a.bot.gateway.ListAccountIDs()
-	// Convert []string to []string explicitly
-	result := make([]string, len(ids))
-	copy(result, ids)
-	return result, nil
+// SetEventHandler sets the event handler for incoming messages.
+// If the client is already connected, the handler is set immediately.
+// Otherwise, it is stored and applied when Connect() is called.
+func (b *WecomBot) SetEventHandler(handler types.EventHandler) {
+	b.eventHandler = handler
+	if b.client != nil {
+		b.client.SetEventHandler(handler)
+	}
 }
 
-// ResolveAccount resolves an account by ID.
-func (a *wecomConfigAdapter) ResolveAccount(accountID string) (*types.Account, error) {
-	client := a.bot.gateway.GetClient(accountID)
-	if client == nil {
-		return &types.Account{
-			ID:         accountID,
-			Enabled:    false,
-			Configured: false,
-			Connected:  false,
-		}, nil
+// Connect connects the WebSocket to WeCom.
+func (b *WecomBot) Connect(ctx context.Context, botID, secret string) error {
+	if b.client != nil && b.client.IsConnected() {
+		return nil // Already connected
 	}
 
-	return &types.Account{
-		ID:         accountID,
-		Enabled:    true,
-		Configured: true,
-		Connected:  client.IsConnected(),
-	}, nil
+	// Create client
+	b.client = NewClient(ClientConfig{
+		BotID:  botID,
+		Secret: secret,
+		Logger: b.config.Logger,
+	})
+
+	// Apply stored event handler if any was registered
+	if b.eventHandler != nil {
+		b.client.SetEventHandler(b.eventHandler)
+	}
+
+	// Connect
+	if err := b.client.Connect(ctx); err != nil {
+		return err
+	}
+
+	b.running = true
+	return nil
 }
 
-// DefaultAccount returns the default account ID.
-func (a *wecomConfigAdapter) DefaultAccount() (string, error) {
-	ids := a.bot.gateway.ListAccountIDs()
-	if len(ids) == 0 {
-		return "", &wechat.Error{
-			Type:    wechat.ErrorAccountNotFound,
-			Message: "no accounts configured",
+// Disconnect disconnects the WebSocket.
+func (b *WecomBot) Disconnect() error {
+	if b.client != nil {
+		b.client.Disconnect()
+	}
+	b.running = false
+	b.client = nil // Clear client to allow reconnection
+	return nil
+}
+
+// IsConnected returns whether the bot is connected.
+func (b *WecomBot) IsConnected() bool {
+	return b.client != nil && b.client.IsConnected()
+}
+
+// Send sends a message.
+func (b *WecomBot) Send(ctx context.Context, msg *types.OutboundMessage) (*types.OutboundResult, error) {
+	if b.client == nil || !b.client.IsConnected() {
+		return nil, &types.Error{
+			Type:    types.ErrorAccountNotFound,
+			Message: "bot not connected",
 		}
 	}
-	return ids[0], nil
+
+	// Use the client's send methods
+	if msg.ContextToken != "" {
+		return b.sendReply(ctx, msg)
+	}
+	return b.sendProactive(ctx, msg)
 }
 
-// IsEnabled checks if an account is enabled.
-func (a *wecomConfigAdapter) IsEnabled(accountID string) (bool, error) {
-	client := a.bot.gateway.GetClient(accountID)
-	return client != nil, nil
+func (b *WecomBot) sendReply(ctx context.Context, msg *types.OutboundMessage) (*types.OutboundResult, error) {
+	body := map[string]interface{}{
+		"msgtype": MsgTypeStream,
+		"stream": map[string]interface{}{
+			"id":      generateReqID("stream"),
+			"finish":  true,
+			"content": msg.Text,
+		},
+	}
+	if err := b.client.SendReply(ctx, msg.ContextToken, body); err != nil {
+		return &types.OutboundResult{OK: false, Error: err.Error()}, err
+	}
+	return &types.OutboundResult{OK: true}, nil
 }
 
-// IsConfigured checks if an account is configured.
-func (a *wecomConfigAdapter) IsConfigured(accountID string) (bool, error) {
-	client := a.bot.gateway.GetClient(accountID)
-	return client != nil, nil
+func (b *WecomBot) sendProactive(ctx context.Context, msg *types.OutboundMessage) (*types.OutboundResult, error) {
+	body := map[string]interface{}{
+		"chatid":  msg.To,
+		"msgtype": MsgTypeMarkdown,
+		"markdown": map[string]interface{}{
+			"content": msg.Text,
+		},
+	}
+	if err := b.client.SendProactive(ctx, body); err != nil {
+		return &types.OutboundResult{OK: false, Error: err.Error()}, err
+	}
+	return &types.OutboundResult{OK: true}, nil
+}
+
+// SendStream sends a streaming text chunk.
+func (b *WecomBot) SendStream(ctx context.Context, msg *types.OutboundMessage) (*types.OutboundResult, error) {
+	if b.client == nil || !b.client.IsConnected() {
+		return nil, &types.Error{
+			Type:    types.ErrorAccountNotFound,
+			Message: "bot not connected",
+		}
+	}
+
+	if msg.ContextToken == "" {
+		return nil, &types.Error{
+			Type:    types.ErrorNotSupported,
+			Message: "streaming requires ContextToken (req_id) from incoming message",
+		}
+	}
+
+	body := map[string]interface{}{
+		"msgtype": MsgTypeStream,
+		"stream": map[string]interface{}{
+			"id":      msg.StreamID,
+			"finish":  msg.StreamFinish,
+			"content": msg.Text,
+		},
+	}
+	if msg.StreamID == "" {
+		body["stream"].(map[string]interface{})["id"] = generateReqID("stream")
+	}
+
+	if err := b.client.SendReply(ctx, msg.ContextToken, body); err != nil {
+		return &types.OutboundResult{OK: false, Error: err.Error()}, err
+	}
+	return &types.OutboundResult{OK: true, ChannelMessageID: msg.StreamID}, nil
+}
+
+// SendMedia sends a media message.
+func (b *WecomBot) SendMedia(ctx context.Context, msg *types.OutboundMessage) (*types.OutboundResult, error) {
+	if b.client == nil || !b.client.IsConnected() {
+		return nil, &types.Error{
+			Type:    types.ErrorAccountNotFound,
+			Message: "bot not connected",
+		}
+	}
+
+	mediaID, ok := msg.Metadata["wecom_media_id"].(string)
+	if !ok || mediaID == "" {
+		return nil, &types.Error{
+			Type:    types.ErrorNotSupported,
+			Message: "media_id required in Metadata[\"wecom_media_id\"]",
+		}
+	}
+
+	mediaType := detectMediaType(msg.ContentType)
+
+	if msg.ContextToken != "" {
+		body := buildMediaBody(mediaType, mediaID, msg)
+		if err := b.client.SendReply(ctx, msg.ContextToken, body); err != nil {
+			return &types.OutboundResult{OK: false, Error: err.Error()}, err
+		}
+	} else {
+		body := map[string]interface{}{
+			"chatid":  msg.To,
+			"msgtype": mediaType,
+		}
+		addMediaToBody(body, mediaType, mediaID, msg)
+		if err := b.client.SendProactive(ctx, body); err != nil {
+			return &types.OutboundResult{OK: false, Error: err.Error()}, err
+		}
+	}
+
+	return &types.OutboundResult{OK: true}, nil
+}
+
+// Helper functions for media sending
+
+func detectMediaType(contentType string) string {
+	switch contentType {
+	case "image", "image/png", "image/jpeg", "image/gif":
+		return MsgTypeImage
+	case "video", "video/mp4":
+		return MsgTypeVideo
+	case "audio", "audio/silk":
+		return MsgTypeVoice
+	default:
+		return MsgTypeFile
+	}
+}
+
+func buildMediaBody(mediaType, mediaID string, msg *types.OutboundMessage) map[string]interface{} {
+	body := map[string]interface{}{
+		"msgtype": mediaType,
+	}
+	addMediaToBody(body, mediaType, mediaID, msg)
+	return body
+}
+
+func addMediaToBody(body map[string]interface{}, mediaType, mediaID string, msg *types.OutboundMessage) {
+	switch mediaType {
+	case MsgTypeVideo:
+		body[mediaType] = map[string]interface{}{
+			"media_id": mediaID,
+			"title":    msg.FileName,
+		}
+	default:
+		body[mediaType] = map[string]interface{}{
+			"media_id": mediaID,
+		}
+	}
 }

@@ -1,14 +1,13 @@
 // Package main demonstrates a WeCom AI Bot echo bot.
 //
-// This example shows the recommended way to integrate with WeCom AI Bot:
+// This example shows the recommended way to use the WeCom bot:
 //
 //  1. Create a WecomBot
 //  2. Configure account credentials (BotID/Secret)
 //  3. Set an EventHandler to receive push messages via WebSocket
-//  4. Send echo replies using ActionsAdapter.Send
+//  4. Send echo replies using Send
 //
 // WeCom uses WebSocket (push-based), not HTTP long-polling.
-// All connection lifecycle (heartbeat, reconnect) is handled by the adapters.
 package main
 
 import (
@@ -37,29 +36,21 @@ func main() {
 		log.Fatal("WECOM_BOT_ID and WECOM_SECRET environment variables are required")
 	}
 
-	accountID := "default"
-
 	// Create WeCom bot
 	bot := wecom.NewWecomBot(&wecom.WecomConfig{
 		Logger: nil,
 	})
 
-	// Configure account credentials
-	bot.Gateway().SetAccountConfig(accountID, wecom.ClientConfig{
-		BotID:  botID,
-		Secret: secret,
-	})
-
 	// Set message handler
-	handler := &echoHandler{bot: bot, accountID: accountID}
-	bot.Gateway().SetEventHandler(accountID, handler)
+	handler := &echoHandler{bot: bot}
+	bot.SetEventHandler(handler)
 
 	// Connect
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	log.Printf("Connecting to WeCom WebSocket (bot: %s)...\n", botID)
-	if err := bot.Gateway().StartAccount(ctx, accountID); err != nil {
+	if err := bot.Connect(ctx, botID, secret); err != nil {
 		log.Fatalf("Failed to connect: %v", err)
 	}
 
@@ -73,14 +64,15 @@ func main() {
 	<-sigChan
 
 	log.Println("Shutting down...")
-	bot.Gateway().StopAccount(ctx, accountID)
+	if err := bot.Disconnect(); err != nil {
+		log.Printf("Disconnect error: %v", err)
+	}
 	log.Println("Goodbye!")
 }
 
 // echoHandler implements types.EventHandler for the echo bot.
 type echoHandler struct {
-	bot       *wecom.WecomBot
-	accountID string
+	bot *wecom.WecomBot
 }
 
 // OnMessage handles incoming messages and echoes them back.
@@ -108,8 +100,7 @@ func (h *echoHandler) OnMessage(ctx context.Context, msg *types.Message) error {
 		return nil
 	}
 
-	result, err := h.bot.Actions().Send(ctx, &types.OutboundMessage{
-		AccountID:    h.accountID,
+	result, err := h.bot.Send(ctx, &types.OutboundMessage{
 		To:           msg.To,
 		Text:         replyText,
 		ContextToken: msg.ContextToken, // req_id for passive reply

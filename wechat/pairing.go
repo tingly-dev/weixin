@@ -1,3 +1,4 @@
+// Package wechat provides WeChat ilink bot implementation.
 package wechat
 
 import (
@@ -9,16 +10,6 @@ import (
 	"github.com/tingly-dev/weixin/api"
 	"github.com/tingly-dev/weixin/types"
 )
-
-// PairingAdapter handles QR code login for weixin.
-type PairingAdapter struct {
-	bot *WechatBot
-}
-
-// NewPairingAdapter creates a new pairing adapter.
-func NewPairingAdapter(bot *WechatBot) *PairingAdapter {
-	return &PairingAdapter{bot: bot}
-}
 
 // activeLogin represents an active QR code login session.
 type activeLogin struct {
@@ -41,9 +32,8 @@ const (
 )
 
 // LoginWithQrStart initiates QR code login flow.
-func (a *PairingAdapter) LoginWithQrStart(ctx context.Context, accountID string) (*types.QrCodeStartResult, error) {
-	// Get bot config
-	config := a.bot.WeChatConfig()
+func (b *WechatBot) LoginWithQrStart(ctx context.Context, accountID string) (*types.QrCodeStartResult, error) {
+	config := b.config
 
 	// Create API client without token (for login)
 	client := api.NewClient(config.BaseURL, "")
@@ -75,9 +65,8 @@ func (a *PairingAdapter) LoginWithQrStart(ctx context.Context, accountID string)
 }
 
 // LoginWithQrWait waits for QR code scan confirmation.
-func (a *PairingAdapter) LoginWithQrWait(ctx context.Context, accountID, qrID string) (*types.QrCodeWaitResult, error) {
-	// Get bot config
-	config := a.bot.WeChatConfig()
+func (b *WechatBot) LoginWithQrWait(ctx context.Context, accountID, qrID string) (*types.QrCodeWaitResult, error) {
+	config := b.config
 	client := api.NewClient(config.BaseURL, "")
 
 	// Check for active login
@@ -185,12 +174,18 @@ func (a *PairingAdapter) LoginWithQrWait(ctx context.Context, accountID, qrID st
 				LastLoginAt: time.Now(),
 			}
 
-			if err := a.bot.Accounts().Save(account); err != nil {
-				return &types.QrCodeWaitResult{
-					Success: false,
-					Error:   fmt.Sprintf("save account: %v", err),
-				}, nil
+			// Save to account manager
+			if b.accountManager != nil {
+				if err := b.accountManager.Save(account); err != nil {
+					return &types.QrCodeWaitResult{
+						Success: false,
+						Error:   fmt.Sprintf("save account: %v", err),
+					}, nil
+				}
 			}
+
+			// Update bot's account
+			b.account = NewAccount(account)
 
 			return &types.QrCodeWaitResult{
 				Success:   true,
@@ -216,20 +211,4 @@ func (a *PairingAdapter) LoginWithQrWait(ctx context.Context, accountID, qrID st
 		Success: false,
 		Error:   "Login timeout",
 	}, nil
-}
-
-// IDLabel returns the label used to store the paired user ID.
-func (a *PairingAdapter) IDLabel() string {
-	return "wechat_user_id"
-}
-
-// NormalizeAllowEntry normalizes an entry for the allowlist.
-func (a *PairingAdapter) NormalizeAllowEntry(entry string) string {
-	return entry
-}
-
-// NotifyApproval sends a notification that pairing was approved.
-func (a *PairingAdapter) NotifyApproval(ctx context.Context, id string, message string) error {
-	// Not implemented for WeChat
-	return nil
 }

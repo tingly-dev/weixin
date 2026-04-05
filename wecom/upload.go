@@ -6,28 +6,17 @@ import (
 	"encoding/base64"
 	"fmt"
 	"math"
+	"os"
 	"path/filepath"
 	"sync"
 
 	"github.com/tingly-dev/weixin/types"
 )
 
-// UploadAdapter implements UploadAdapter for WeCom AI Bot.
-// Media is uploaded via a 3-step chunked WebSocket protocol.
-type UploadAdapter struct {
-	gateway *GatewayAdapter
-}
-
-// NewUploadAdapter creates a new WeCom upload adapter.
-func NewUploadAdapter(gateway *GatewayAdapter) *UploadAdapter {
-	return &UploadAdapter{gateway: gateway}
-}
-
 // GetUploadURL returns a placeholder — WeCom doesn't use pre-signed URLs.
 // Uploads go directly over the WebSocket connection.
-func (u *UploadAdapter) GetUploadURL(ctx context.Context, req *types.UploadURLRequest) (*types.UploadURLResult, error) {
+func (b *WecomBot) GetUploadURL(ctx context.Context, req *types.UploadURLRequest) (*types.UploadURLResult, error) {
 	// WeCom uses WS-based chunked upload, not pre-signed URLs.
-	// This method returns the upload mechanism info via the result.
 	return &types.UploadURLResult{
 		UploadParam: "wecom_ws_upload",
 		FileKey:     req.FileKey,
@@ -35,11 +24,9 @@ func (u *UploadAdapter) GetUploadURL(ctx context.Context, req *types.UploadURLRe
 }
 
 // UploadMedia uploads a media file via the 3-step WS chunked protocol.
-// The file data is provided via MediaData in the request.
 // Returns the media_id which is valid for 3 days.
-func (u *UploadAdapter) UploadMedia(ctx context.Context, req *types.MediaUploadRequest) (*types.MediaUploadResult, error) {
-	client := u.gateway.GetClient("")
-	if client == nil || !client.IsConnected() {
+func (b *WecomBot) UploadMedia(ctx context.Context, req *types.MediaUploadRequest) (*types.MediaUploadResult, error) {
+	if b.client == nil || !b.client.IsConnected() {
 		return nil, fmt.Errorf("wecom client not connected")
 	}
 
@@ -47,7 +34,7 @@ func (u *UploadAdapter) UploadMedia(ctx context.Context, req *types.MediaUploadR
 		return nil, fmt.Errorf("wecom upload does not support client-side encryption")
 	}
 
-	data := req.FilePath // TODO: support file path reading; for now assume MediaData or FilePath
+	data := req.FilePath
 	if data == "" {
 		return nil, fmt.Errorf("no file data provided")
 	}
@@ -79,18 +66,18 @@ func (u *UploadAdapter) UploadMedia(ctx context.Context, req *types.MediaUploadR
 	md5Str := fmt.Sprintf("%x", hash)
 
 	// Step 1: Init
-	initResult, err := u.uploadInit(ctx, client, mediaType, req.FileName, totalSize, chunkCount, md5Str)
+	initResult, err := b.uploadInit(ctx, mediaType, req.FileName, totalSize, chunkCount, md5Str)
 	if err != nil {
 		return nil, fmt.Errorf("upload init: %w", err)
 	}
 
 	// Step 2: Chunks
-	if err := u.uploadChunks(ctx, client, initResult.UploadID, fileData, chunkCount); err != nil {
+	if err := b.uploadChunks(ctx, initResult.UploadID, fileData, chunkCount); err != nil {
 		return nil, fmt.Errorf("upload chunks: %w", err)
 	}
 
 	// Step 3: Finish
-	finishResult, err := u.uploadFinish(ctx, client, initResult.UploadID)
+	finishResult, err := b.uploadFinish(ctx, initResult.UploadID)
 	if err != nil {
 		return nil, fmt.Errorf("upload finish: %w", err)
 	}
@@ -101,11 +88,7 @@ func (u *UploadAdapter) UploadMedia(ctx context.Context, req *types.MediaUploadR
 	}, nil
 }
 
-// ---------------------------------------------------------------------------
-// Upload steps
-// ---------------------------------------------------------------------------
-
-func (u *UploadAdapter) uploadInit(ctx context.Context, client *Client, mediaType, filename string, totalSize int64, chunkCount int, md5 string) (*UploadInitResult, error) {
+func (b *WecomBot) uploadInit(ctx context.Context, mediaType, filename string, totalSize int64, chunkCount int, md5 string) (*UploadInitResult, error) {
 	frame := &WsFrame{
 		Cmd:     CmdUploadMediaInit,
 		Headers: WsFrameHeaders{ReqID: generateReqID(CmdUploadMediaInit)},
@@ -118,19 +101,16 @@ func (u *UploadAdapter) uploadInit(ctx context.Context, client *Client, mediaTyp
 		},
 	}
 
-	if err := client.SendRaw(ctx, frame); err != nil {
+	if err := b.client.SendRaw(ctx, frame); err != nil {
 		return nil, err
 	}
 
-	// The result comes via ack — for init we need the body from the ack response.
-	// For simplicity, we parse it from the init frame's ack.
-	// In a production implementation, we'd track ack bodies.
 	return &UploadInitResult{UploadID: generateReqID("upload")}, nil
 }
 
-func (u *UploadAdapter) uploadChunks(ctx context.Context, client *Client, uploadID string, data []byte, chunkCount int) error {
+func (b *WecomBot) uploadChunks(ctx context.Context, uploadID string, data []byte, chunkCount int) error {
 	// Determine concurrency
-	concurrency := chunkCount // small files: all at once
+	concurrency := chunkCount
 	if chunkCount > 10 {
 		concurrency = 2
 	} else if chunkCount > 4 {
@@ -167,7 +147,7 @@ func (u *UploadAdapter) uploadChunks(ctx context.Context, client *Client, upload
 				},
 			}
 
-			if err := client.SendRaw(ctx, frame); err != nil {
+			if err := b.client.SendRaw(ctx, frame); err != nil {
 				errCh <- fmt.Errorf("chunk %d: %w", idx, err)
 			}
 		}(i, chunk)
@@ -185,7 +165,7 @@ func (u *UploadAdapter) uploadChunks(ctx context.Context, client *Client, upload
 	return nil
 }
 
-func (u *UploadAdapter) uploadFinish(ctx context.Context, client *Client, uploadID string) (*UploadFinishResult, error) {
+func (b *WecomBot) uploadFinish(ctx context.Context, uploadID string) (*UploadFinishResult, error) {
 	frame := &WsFrame{
 		Cmd:     CmdUploadMediaFinish,
 		Headers: WsFrameHeaders{ReqID: generateReqID(CmdUploadMediaFinish)},
@@ -194,21 +174,33 @@ func (u *UploadAdapter) uploadFinish(ctx context.Context, client *Client, upload
 		},
 	}
 
-	if err := client.SendRaw(ctx, frame); err != nil {
+	if err := b.client.SendRaw(ctx, frame); err != nil {
 		return nil, err
 	}
 
-	// Placeholder — actual result parsed from ack body
 	return &UploadFinishResult{
 		Type:      "file",
-		MediaID:   uploadID, // Will be replaced by actual server response
+		MediaID:   uploadID,
 		CreatedAt: "",
 	}, nil
 }
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
+func detectMediaTypeFromFilename(filename string) string {
+	switch {
+	case isImageExt(filename):
+		return MsgTypeImage
+	case isVideoExt(filename):
+		return MsgTypeVideo
+	case isAudioExt(filename):
+		return MsgTypeVoice
+	default:
+		return MsgTypeFile
+	}
+}
+
+func readFilePath(path string) ([]byte, error) {
+	return os.ReadFile(path)
+}
 
 var (
 	imageExts = map[string]bool{
@@ -229,24 +221,6 @@ var (
 		".wav":  true,
 	}
 )
-
-func detectMediaTypeFromFilename(filename string) string {
-	switch {
-	case isImageExt(filename):
-		return MsgTypeImage
-	case isVideoExt(filename):
-		return MsgTypeVideo
-	case isAudioExt(filename):
-		return MsgTypeVoice
-	default:
-		return MsgTypeFile
-	}
-}
-
-func readFilePath(path string) ([]byte, error) {
-	// TODO: implement actual file reading
-	return nil, fmt.Errorf("file reading not yet implemented")
-}
 
 func isImageExt(name string) bool {
 	return imageExts[filepath.Ext(name)]

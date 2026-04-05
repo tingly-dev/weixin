@@ -1,43 +1,48 @@
-// package weixin provides the main WeChat bot.
+// Package wechat provides the WeChat ilink bot implementation.
 package wechat
 
 import (
-	"sync"
+	"context"
 
+	"github.com/tingly-dev/weixin/api"
+	"github.com/tingly-dev/weixin/bot"
 	"github.com/tingly-dev/weixin/types"
 )
 
-// WechatBot is the WeChat bot.
+// WechatBot is the WeChat ilink bot implementation.
+// One bot manages one account with one API client.
 type WechatBot struct {
-	*BaseBot
-	config   *types.WeChatConfig
-	accounts *AccountManager
-	running  map[string]bool // accountID -> running
-	mu       sync.RWMutex    // protects running map
+	*bot.BaseBot
+	config         *types.WeChatConfig
+	account        *Account        // Single account for this bot
+	accountManager *AccountManager // For loading/saving accounts
 }
 
-// NewWeixinBot creates a new WeChat bot.
-func NewWeixinBot(config *types.WeChatConfig) *WechatBot {
+// NewWechatBot creates a new WeChat bot.
+func NewWechatBot(config *types.WeChatConfig) (*WechatBot, error) {
 	return NewWechatBotWithDataDir(config, "")
 }
 
 // NewWechatBotWithDataDir creates a new WeChat bot with a custom data directory.
 // If dataDir is empty, uses the default ~/.weixin/accounts.
-func NewWechatBotWithDataDir(config *types.WeChatConfig, dataDir string) *WechatBot {
-	p := &WechatBot{
-		config:  config,
-		running: make(map[string]bool),
+func NewWechatBotWithDataDir(config *types.WeChatConfig, dataDir string) (*WechatBot, error) {
+	if config == nil {
+		config = &types.WeChatConfig{}
+	}
+
+	b := &WechatBot{
+		config: config,
 	}
 
 	// Create account manager with custom or default directory
 	if dataDir != "" {
-		p.accounts = NewAccountManagerWithDir(dataDir)
+		b.accountManager = NewAccountManagerWithDir(dataDir)
 	} else {
-		p.accounts = NewAccountManager()
+		b.accountManager = NewAccountManager()
 	}
 
 	// Create base bot with metadata
-	meta := &Meta{
+	meta := &types.Meta{
 		Label:          "WeChat",
 		SelectionLabel: "WeChat",
 		DetailLabel:    "WeChat",
@@ -54,140 +59,89 @@ func NewWechatBotWithDataDir(config *types.WeChatConfig, dataDir string) *Wechat
 		BlockStreaming: true,
 	}
 
-	p.BaseBot = NewBasePlugin(meta, capabilities, &ConfigAdapter{Bot: p})
-	p.SetActions(NewActionsAdapter(p))
-	p.SetGateway(NewGatewayAdapter(p))
-	p.SetLongPoll(NewLongPollAdapter(p))
-	p.SetUpload(NewUploadAdapter(p))
-	p.SetPairing(NewPairingAdapter(p))
+	b.BaseBot = bot.NewBaseBot(meta, capabilities)
 
-	return p
+	return b, nil
 }
 
-// Accounts returns the account manager.
-func (p *WechatBot) Accounts() *AccountManager {
-	return p.accounts
-}
-
-// WeChatConfig returns the bot configuration.
-func (p *WechatBot) WeChatConfig() *types.WeChatConfig {
-	return p.config
-}
-
-// SetRunning sets the running state for an account.
-func (p *WechatBot) SetRunning(accountID string, running bool) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	if running {
-		p.running[accountID] = true
-	} else {
-		delete(p.running, accountID)
+// NewWechatBotWithAccount creates a new WeChat bot with an existing account.
+func NewWechatBotWithAccount(config *types.WeChatConfig, wcAccount *types.WeChatAccount) (*WechatBot, error) {
+	b, err := NewWechatBot(config)
+	if err != nil {
+		return nil, err
 	}
+
+	// Set account
+	b.account = NewAccount(wcAccount)
+
+	return b, nil
 }
 
-// IsRunningByID checks if an account is running.
-func (p *WechatBot) IsRunningByID(accountID string) bool {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-	return p.running[accountID]
-}
-
-// Meta represents metadata about a bot.
-type Meta struct {
-	Label string `json:"label"`
-
-	SelectionLabel string `json:"selectionLabel"`
-	DetailLabel    string `json:"detailLabel,omitempty"`
-	DocsPath       string `json:"docsPath"`
-	DocsLabel      string `json:"docsLabel,omitempty"`
-	Blurb          string `json:"blurb"`
-
-	Order       int      `json:"order,omitempty"`
-	Aliases     []string `json:"aliases,omitempty"`
-	SystemImage string   `json:"systemImage,omitempty"`
-	Version     string   `json:"version,omitempty"`
-}
-
-// BaseBot provides a default implementation of the WechatBot interface.
-type BaseBot struct {
-	meta         *Meta
-	capabilities *types.Capabilities
-	config       types.ConfigAdapter
-	actions      types.ActionsAdapter
-	gateway      types.GatewayAdapter
-	pairing      types.PairingAdapter
-	upload       types.UploadAdapter
-	longPoll     types.LongPollAdapter
-}
-
-// NewBasePlugin creates a new base bot.
-func NewBasePlugin(meta *Meta, capabilities *types.Capabilities, config types.ConfigAdapter) *BaseBot {
-	return &BaseBot{
-		meta:         meta,
-		capabilities: capabilities,
-		config:       config,
+// LoadAccount loads an account from the account manager by ID.
+func (b *WechatBot) LoadAccount(accountID string) error {
+	wcAccount, err := b.accountManager.Get(accountID)
+	if err != nil {
+		return &types.Error{
+			Type:    types.ErrorAccountNotFound,
+			Message: "account not found: " + accountID,
+			Err:     err,
+		}
 	}
+
+	b.account = NewAccount(wcAccount)
+	return nil
 }
 
-// Meta returns the bot metadata.
-func (p *BaseBot) Meta() *Meta { return p.meta }
-
-// Capabilities returns the bot capabilities.
-func (p *BaseBot) Capabilities() *types.Capabilities { return p.capabilities }
-
-// Config returns the config adapter.
-func (p *BaseBot) Config() types.ConfigAdapter { return p.config }
-
-// Actions returns the actions adapter.
-func (p *BaseBot) Actions() types.ActionsAdapter { return p.actions }
-
-// Gateway returns the gateway adapter.
-func (p *BaseBot) Gateway() types.GatewayAdapter { return p.gateway }
-
-// Pairing returns the pairing adapter.
-func (p *BaseBot) Pairing() types.PairingAdapter { return p.pairing }
-
-// Upload returns the upload adapter.
-func (p *BaseBot) Upload() types.UploadAdapter { return p.upload }
-
-// LongPoll returns the long-polling adapter.
-func (p *BaseBot) LongPoll() types.LongPollAdapter { return p.longPoll }
-
-// SetActions sets the actions adapter.
-func (p *BaseBot) SetActions(actions types.ActionsAdapter) { p.actions = actions }
-
-// SetGateway sets the gateway adapter.
-func (p *BaseBot) SetGateway(gateway types.GatewayAdapter) { p.gateway = gateway }
-
-// SetPairing sets the pairing adapter.
-func (p *BaseBot) SetPairing(pairing types.PairingAdapter) { p.pairing = pairing }
-
-// SetUpload sets the upload adapter.
-func (p *BaseBot) SetUpload(upload types.UploadAdapter) { p.upload = upload }
-
-// SetLongPoll sets the long-polling adapter.
-func (p *BaseBot) SetLongPoll(longPoll types.LongPollAdapter) { p.longPoll = longPoll }
-
-// ErrorType identifies a category of error.
-type ErrorType string
-
-const (
-	ErrorAccountNotFound ErrorType = "account_not_found"
-	ErrorNotSupported    ErrorType = "not_supported"
-)
-
-// Error represents a bot-related error.
-type Error struct {
-	Type    ErrorType
-	Message string
-	Err     error
+// Account returns the current account.
+func (b *WechatBot) Account() *Account {
+	return b.account
 }
 
-func (e *Error) Error() string {
-	if e.Err != nil {
-		return e.Message + ": " + e.Err.Error()
+// Client returns the underlying API client.
+func (b *WechatBot) Client() *api.Client {
+	if b.account == nil {
+		return nil
 	}
-	return e.Message
+	return b.account.Client()
 }
 
-func (e *Error) Unwrap() error { return e.Err }
+// AccountManager returns the account manager (for loading/saving accounts).
+func (b *WechatBot) AccountManager() *AccountManager {
+	return b.accountManager
+}
+
+// Config returns the bot configuration.
+func (b *WechatBot) Config() *types.WeChatConfig {
+	return b.config
+}
+
+// IsConnected returns whether the bot is connected (account is configured).
+func (b *WechatBot) IsConnected() bool {
+	return b.account != nil && b.account.IsConfigured()
+}
+
+// Connect activates the bot with a loaded account.
+// This is a no-op for WeChat as it uses HTTP API, not persistent connections.
+// The account must be loaded first via LoadAccount() or NewWechatBotWithAccount().
+func (b *WechatBot) Connect(ctx context.Context) error {
+	if b.account == nil {
+		return &types.Error{
+			Type:    types.ErrorAccountNotFound,
+			Message: "no account loaded, call LoadAccount() first",
+		}
+	}
+	if !b.account.IsConfigured() {
+		return &types.Error{
+			Type:    types.ErrorAccountNotFound,
+			Message: "account not configured",
+		}
+	}
+	return nil
+}
+
+// Disconnect deactivates the bot.
+// This is a no-op for WeChat as it uses HTTP API, not persistent connections.
+func (b *WechatBot) Disconnect() error {
+	b.account = nil
+	return nil
+}

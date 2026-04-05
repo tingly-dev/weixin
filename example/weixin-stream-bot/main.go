@@ -1,10 +1,9 @@
-// Package main demonstrates WeChat block streaming using the channel abstraction layer.
+// Package main demonstrates WeChat block streaming.
 //
 // This example shows how to simulate streaming text output by sending
 // multiple text chunks via Send(). WeChat's ilink protocol doesn't support
 // true streaming — instead, "block streaming" sends each chunk as a separate
-// message. The framework coalesces chunks locally (minChars: 200, idleMs: 3000)
-// before delivering them.
+// message.
 //
 // Usage: go run main.go
 package main
@@ -49,15 +48,18 @@ func main() {
 	log.Println("WeChat Stream Bot (block streaming demo)")
 	log.Println(strings.Repeat("=", 60))
 
-	// Create b with pwd as data directory and initialize adapters
+	// Create bot with pwd as data directory
 	config := &types.WeChatConfig{
 		BaseURL: defaultBaseURL,
 		BotType: "3",
 	}
-	b := wechat.NewWechatBotWithDataDir(config, ".")
+	bot, err := wechat.NewWechatBotWithDataDir(config, ".")
+	if err != nil {
+		log.Fatalf("Failed to create bot: %v", err)
+	}
 
 	// Resolve or create account
-	accountID, err := ensureAccount(b)
+	accountID, err := ensureAccount(bot)
 	if err != nil {
 		log.Fatalf("Failed to get account: %v", err)
 	}
@@ -68,7 +70,7 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	go pollLoop(ctx, b, accountID)
+	go pollLoop(ctx, bot)
 
 	log.Println(strings.Repeat("=", 60))
 	log.Println("Stream bot is running. Send a message to test streaming.")
@@ -85,27 +87,31 @@ func main() {
 }
 
 // ensureAccount returns an existing account ID or runs QR login to create one.
-func ensureAccount(b *wechat.WechatBot) (string, error) {
-	ids, err := b.Accounts().ListIDs()
+func ensureAccount(bot *wechat.WechatBot) (string, error) {
+	ids, err := bot.AccountManager().ListIDs()
 	if err != nil {
 		return "", err
 	}
 	if len(ids) > 0 {
+		// Load the first account
+		if err := bot.LoadAccount(ids[0]); err != nil {
+			return "", err
+		}
 		return ids[0], nil
 	}
 
-	return qrLogin(b)
+	return qrLogin(bot)
 }
 
-// qrLogin performs QR code login via the PairingAdapter.
-func qrLogin(b *wechat.WechatBot) (string, error) {
+// qrLogin performs QR code login.
+func qrLogin(bot *wechat.WechatBot) (string, error) {
 	ctx := context.Background()
 	accountID := "default"
 
 	log.Println("No account found. Starting QR code login...")
 
 	// Step 1: Get QR code
-	qrResult, err := b.Pairing().LoginWithQrStart(ctx, accountID)
+	qrResult, err := bot.LoginWithQrStart(ctx, accountID)
 	if err != nil {
 		return "", fmt.Errorf("get QR code: %w", err)
 	}
@@ -120,7 +126,7 @@ func qrLogin(b *wechat.WechatBot) (string, error) {
 
 	// Step 2: Wait for confirmation
 	log.Println("Waiting for scan and confirmation...")
-	waitResult, err := b.Pairing().LoginWithQrWait(ctx, accountID, qrResult.QrCodeID)
+	waitResult, err := bot.LoginWithQrWait(ctx, accountID, qrResult.QrCodeID)
 	if err != nil {
 		return "", fmt.Errorf("QR login: %w", err)
 	}
@@ -133,7 +139,7 @@ func qrLogin(b *wechat.WechatBot) (string, error) {
 }
 
 // pollLoop continuously polls for messages and responds with streamed chunks.
-func pollLoop(ctx context.Context, b *wechat.WechatBot, accountID string) {
+func pollLoop(ctx context.Context, bot *wechat.WechatBot) {
 	syncBuf := ""
 	backoff := 2 * time.Second
 	const maxBackoff = 30 * time.Second
@@ -148,10 +154,7 @@ func pollLoop(ctx context.Context, b *wechat.WechatBot, accountID string) {
 		default:
 		}
 
-		result, err := b.LongPoll().GetUpdates(ctx, &types.GetUpdatesRequest{
-			AccountID: accountID,
-			SyncBuf:   syncBuf,
-		})
+		result, err := bot.GetUpdates(ctx, syncBuf)
 		if err != nil {
 			log.Printf("GetUpdates error: %v\n", err)
 			time.Sleep(backoff)
@@ -185,19 +188,19 @@ func pollLoop(ctx context.Context, b *wechat.WechatBot, accountID string) {
 			go func(idx int) {
 				defer wg.Done()
 				defer func() { <-sem }()
-				handleMessage(ctx, b, accountID, msg, idx)
+				handleMessage(ctx, bot, msg, idx)
 			}(i)
 		}
 	}
 }
 
 // handleMessage processes a single message and sends a streamed reply.
-func handleMessage(ctx context.Context, b *wechat.WechatBot, accountID string, msg *types.Message, idx int) {
+func handleMessage(ctx context.Context, bot *wechat.WechatBot, msg *types.Message, idx int) {
 	if msg == nil {
 		return
 	}
 
-	log.Printf("[%s] Message #%d from %s: %q\n", accountID, idx, msg.SenderID, msg.Text)
+	log.Printf("Message #%d from %s: %q\n", idx, msg.SenderID, msg.Text)
 
 	if msg.Text == "" {
 		return
@@ -214,35 +217,34 @@ func handleMessage(ctx context.Context, b *wechat.WechatBot, accountID string, m
 	}
 
 	// Simulate block streaming: send each phrase as a separate message
-	log.Printf("[%s] Starting stream to %s (%d chunks)\n", accountID, msg.SenderID, len(demoPhrases))
+	log.Printf("Starting stream to %s (%d chunks)\n", msg.SenderID, len(demoPhrases))
 	for i, chunk := range demoPhrases {
 		select {
 		case <-ctx.Done():
-			log.Printf("[%s] Stream cancelled at chunk %d\n", accountID, i)
+			log.Printf("Stream cancelled at chunk %d\n", i)
 			return
 		default:
 		}
 
-		result, err := b.Actions().Send(ctx, &types.OutboundMessage{
-			AccountID:    accountID,
+		result, err := bot.Send(ctx, &types.OutboundMessage{
 			To:           msg.To,
 			Text:         chunk,
 			ContextToken: contextToken,
 		})
 		if err != nil {
-			log.Printf("[%s] Stream chunk %d error: %v\n", accountID, i, err)
+			log.Printf("Stream chunk %d error: %v\n", i, err)
 			return
 		}
 		if !result.OK {
-			log.Printf("[%s] Stream chunk %d failed: %s\n", accountID, i, result.Error)
+			log.Printf("Stream chunk %d failed: %s\n", i, result.Error)
 			return
 		}
 
-		log.Printf("[%s] Stream chunk %d/%d sent\n", accountID, i+1, len(demoPhrases))
+		log.Printf("Stream chunk %d/%d sent\n", i+1, len(demoPhrases))
 
 		// Simulate token generation delay (like an LLM producing output)
 		time.Sleep(500 * time.Millisecond)
 	}
 
-	log.Printf("[%s] Stream complete to %s\n", accountID, msg.SenderID)
+	log.Printf("Stream complete to %s\n", msg.SenderID)
 }

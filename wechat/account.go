@@ -1,4 +1,4 @@
-// package weixin provides configuration management for the WeChat plugin.
+// Package wechat provides the WeChat ilink bot implementation.
 package wechat
 
 import (
@@ -7,8 +7,80 @@ import (
 	"path/filepath"
 	"sync"
 
+	"github.com/tingly-dev/weixin/api"
 	"github.com/tingly-dev/weixin/types"
 )
+
+// Account represents a single WeChat account with its API client.
+// One account = one API client = one bot instance.
+type Account struct {
+	id      string
+	client  *api.Client
+	account *types.WeChatAccount
+}
+
+// NewAccount creates a new account with API client from a WeChatAccount.
+func NewAccount(wcAccount *types.WeChatAccount) *Account {
+	return &Account{
+		id:      wcAccount.ID,
+		client:  api.NewClient(wcAccount.BaseURL, wcAccount.BotToken),
+		account: wcAccount,
+	}
+}
+
+// NewAccountWithClient creates a new account with an existing API client.
+func NewAccountWithClient(id string, client *api.Client, wcAccount *types.WeChatAccount) *Account {
+	return &Account{
+		id:      id,
+		client:  client,
+		account: wcAccount,
+	}
+}
+
+// ID returns the account ID.
+func (a *Account) ID() string {
+	return a.id
+}
+
+// Client returns the underlying API client.
+func (a *Account) Client() *api.Client {
+	return a.client
+}
+
+// WeChatAccount returns the WeChat account details.
+func (a *Account) WeChatAccount() *types.WeChatAccount {
+	return a.account
+}
+
+// BaseURL returns the API base URL.
+func (a *Account) BaseURL() string {
+	return a.account.BaseURL
+}
+
+// BotToken returns the bot token.
+func (a *Account) BotToken() string {
+	return a.account.BotToken
+}
+
+// BotID returns the bot ID.
+func (a *Account) BotID() string {
+	return a.account.BotID
+}
+
+// UserID returns the user ID.
+func (a *Account) UserID() string {
+	return a.account.UserID
+}
+
+// IsEnabled returns whether the account is enabled.
+func (a *Account) IsEnabled() bool {
+	return a.account.Enabled
+}
+
+// IsConfigured returns whether the account is configured.
+func (a *Account) IsConfigured() bool {
+	return a.account.Configured
+}
 
 // AccountManager manages WeChat account persistence.
 type AccountManager struct {

@@ -103,9 +103,8 @@ type CardSelectionItem struct {
 }
 
 // SendTemplateCardReply sends a template card as a reply.
-func (a *ActionsAdapter) SendTemplateCardReply(ctx context.Context, reqID string, card *TemplateCard) error {
-	client := a.gateway.GetClient("")
-	if client == nil || !client.IsConnected() {
+func (b *WecomBot) SendTemplateCardReply(ctx context.Context, reqID string, card *TemplateCard) error {
+	if b.client == nil || !b.client.IsConnected() {
 		return fmt.Errorf("wecom client not connected")
 	}
 
@@ -113,13 +112,12 @@ func (a *ActionsAdapter) SendTemplateCardReply(ctx context.Context, reqID string
 		"msgtype":       MsgTypeTemplateCard,
 		"template_card": card,
 	}
-	return client.SendReply(ctx, reqID, body)
+	return b.client.SendReply(ctx, reqID, body)
 }
 
 // SendWelcomeText sends a text welcome message. Must be within 5s of enter_chat.
-func (a *ActionsAdapter) SendWelcomeText(ctx context.Context, reqID, text string) error {
-	client := a.gateway.GetClient("")
-	if client == nil || !client.IsConnected() {
+func (b *WecomBot) SendWelcomeText(ctx context.Context, reqID, text string) error {
+	if b.client == nil || !b.client.IsConnected() {
 		return fmt.Errorf("wecom client not connected")
 	}
 
@@ -127,13 +125,12 @@ func (a *ActionsAdapter) SendWelcomeText(ctx context.Context, reqID, text string
 		"msgtype": "text",
 		"text":    map[string]string{"content": text},
 	}
-	return client.SendWelcome(ctx, reqID, body)
+	return b.client.SendWelcome(ctx, reqID, body)
 }
 
 // SendWelcomeCard sends a template card welcome message. Must be within 5s of enter_chat.
-func (a *ActionsAdapter) SendWelcomeCard(ctx context.Context, reqID string, card *TemplateCard) error {
-	client := a.gateway.GetClient("")
-	if client == nil || !client.IsConnected() {
+func (b *WecomBot) SendWelcomeCard(ctx context.Context, reqID string, card *TemplateCard) error {
+	if b.client == nil || !b.client.IsConnected() {
 		return fmt.Errorf("wecom client not connected")
 	}
 
@@ -141,13 +138,12 @@ func (a *ActionsAdapter) SendWelcomeCard(ctx context.Context, reqID string, card
 		"msgtype":       "template_card",
 		"template_card": card,
 	}
-	return client.SendWelcome(ctx, reqID, body)
+	return b.client.SendWelcome(ctx, reqID, body)
 }
 
 // UpdateTemplateCard updates a template card. Must be within 5s of card event.
-func (a *ActionsAdapter) UpdateTemplateCard(ctx context.Context, reqID string, card *TemplateCard, userIDs []string) error {
-	client := a.gateway.GetClient("")
-	if client == nil || !client.IsConnected() {
+func (b *WecomBot) UpdateTemplateCard(ctx context.Context, reqID string, card *TemplateCard, userIDs []string) error {
+	if b.client == nil || !b.client.IsConnected() {
 		return fmt.Errorf("wecom client not connected")
 	}
 
@@ -158,5 +154,5 @@ func (a *ActionsAdapter) UpdateTemplateCard(ctx context.Context, reqID string, c
 	if len(userIDs) > 0 {
 		body["userids"] = userIDs
 	}
-	return client.SendUpdateCard(ctx, reqID, body)
+	return b.client.SendUpdateCard(ctx, reqID, body)
 }

@@ -14,6 +14,17 @@ const (
 	ChatTypeGroup  ChatType = "group"
 )
 
+// Meta represents metadata about a bot.
+type Meta struct {
+	Label          string `json:"label"`
+	SelectionLabel string `json:"selectionLabel"`
+	DetailLabel    string `json:"detailLabel,omitempty"`
+	Blurb          string `json:"blurb"`
+	DocsPath       string `json:"docsPath"`
+	SystemImage    string `json:"systemImage,omitempty"`
+	Version        string `json:"version,omitempty"`
+}
+
 // Capabilities describes what a platform supports.
 type Capabilities struct {
 	// ChatTypes is the list of supported conversation types.
@@ -102,6 +113,7 @@ type OutboundMessage struct {
 	MediaData   []byte `json:"mediaData,omitempty"`
 	ContentType string `json:"contentType,omitempty"`
 	FileName    string `json:"fileName,omitempty"`
+	FilePath    string `json:"filePath,omitempty"` // Path to local file for upload
 
 	// Threading
 	ThreadID  string `json:"threadId,omitempty"`
@@ -241,3 +253,97 @@ const (
 	UploadMediaTypeFile
 	UploadMediaTypeVoice
 )
+
+// ErrorType identifies a category of error.
+type ErrorType string
+
+const (
+	ErrorAccountNotFound ErrorType = "account_not_found"
+	ErrorNotSupported    ErrorType = "not_supported"
+)
+
+// Error represents a bot-related error.
+type Error struct {
+	Type    ErrorType
+	Message string
+	Err     error
+}
+
+func (e *Error) Error() string {
+	if e.Err != nil {
+		return e.Message + ": " + e.Err.Error()
+	}
+	return e.Message
+}
+
+func (e *Error) Unwrap() error {
+	return e.Err
+}
+
+// QrCodeStartResult contains the QR code information for login.
+type QrCodeStartResult struct {
+	QrCodeID   string `json:"qrcodeId"`   // Unique ID for this QR code session
+	QrCodeURL  string `json:"qrcodeUrl"`  // URL to the QR code image
+	QrCodeData string `json:"qrcodeData"` // QR code data (base64 or text format)
+	ExpiresIn  int    `json:"expiresIn"`  // Seconds until QR code expires
+}
+
+// QrCodeWaitResult contains the login result after QR code scan.
+type QrCodeWaitResult struct {
+	Success   bool   `json:"success"`   // True if login succeeded
+	BotToken  string `json:"botToken"`  // Authentication token
+	AccountID string `json:"accountId"` // Account ID
+	BaseURL   string `json:"baseUrl"`   // Base URL for API requests
+	UserID    string `json:"userId"`    // User ID
+	Error     string `json:"error"`     // Error message if failed
+}
+
+// UploadURLRequest contains parameters for getting an upload URL.
+type UploadURLRequest struct {
+	FileKey   string `json:"filekey"`    // Unique file identifier
+	MediaType int    `json:"media_type"` // 1=IMAGE, 2=VIDEO, 3=AUDIO, 4=FILE
+	RawSize   int64  `json:"rawsize"`    // Original file size in bytes
+	RawMD5    string `json:"rawfilemd5"` // MD5 hash of original file
+	FileSize  int64  `json:"filesize"`   // Encrypted file size in bytes
+	AESKey    string `json:"aeskey"`     // Base64-encoded AES key (if encryption used)
+	FileName  string `json:"filename"`   // Original filename
+}
+
+// UploadURLResult contains the upload URL and related parameters.
+type UploadURLResult struct {
+	UploadParam string `json:"upload_param"` // CDN upload URL
+	FileKey     string `json:"filekey"`      // File identifier
+	AuthToken   string `json:"auth_token"`   // Authorization token for upload
+}
+
+// MediaUploadRequest contains parameters for uploading a media file.
+type MediaUploadRequest struct {
+	FilePath   string `json:"filepath"`   // Path to local file
+	FileName   string `json:"filename"`   // Original filename
+	MediaType  string `json:"mediaType"`  // "image", "video", "audio", "file"
+	EncryptKey []byte `json:"encryptKey"` // AES key for encryption (nil = no encryption)
+}
+
+// MediaUploadResult contains the result of a media upload.
+type MediaUploadResult struct {
+	FileKey      string `json:"filekey"`      // File identifier
+	FileSize     int64  `json:"filesize"`     // Original file size
+	UploadURL    string `json:"uploadUrl"`    // CDN URL
+	EncryptKey   []byte `json:"encryptKey"`   // Encryption key used
+	EncryptQuery string `json:"encryptQuery"` // Query param for decryption
+}
+
+// GetUpdatesRequest contains parameters for long-polling getUpdates.
+type GetUpdatesRequest struct {
+	AccountID string `json:"accountId"` // Account identifier
+	SyncBuf   string `json:"syncBuf"`   // Current sync buffer (cursor)
+}
+
+// GetUpdatesResult contains the result of a getUpdates call.
+type GetUpdatesResult struct {
+	Messages           []*Message `json:"messages"`           // New messages
+	SyncBuf            string     `json:"syncBuf"`            // New sync buffer (next cursor)
+	LongPollingTimeout int        `json:"longpollingTimeout"` // Suggested timeout for next request
+	ErrCode            int        `json:"errcode"`            // Error code (0 = success)
+	ErrMsg             string     `json:"errmsg"`             // Error message
+}
