@@ -9,7 +9,7 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/tingly-dev/weixin/api"
+	"github.com/tingly-dev/weixin/wechat/api"
 )
 
 // DownloadAndDecryptBuffer downloads and decrypts media from WeChat CDN.

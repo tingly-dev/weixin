@@ -8,8 +8,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/tingly-dev/weixin/api"
 	"github.com/tingly-dev/weixin/message/cdn"
+	"github.com/tingly-dev/weixin/wechat/api"
 )
 
 const (

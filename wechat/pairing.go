@@ -7,8 +7,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/tingly-dev/weixin/api"
 	"github.com/tingly-dev/weixin/types"
+	"github.com/tingly-dev/weixin/wechat/api"
 )
 
 // activeLogin represents an active QR code login session.

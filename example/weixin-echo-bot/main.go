@@ -21,9 +21,9 @@ import (
 	"syscall"
 	"time"
 
-	api "github.com/tingly-dev/weixin/api"
 	"github.com/tingly-dev/weixin/types"
 	"github.com/tingly-dev/weixin/wechat"
+	api "github.com/tingly-dev/weixin/wechat/api"
 )
 
 const (

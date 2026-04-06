@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/tingly-dev/weixin/api"
 	"github.com/tingly-dev/weixin/message"
 	"github.com/tingly-dev/weixin/storage"
 	"github.com/tingly-dev/weixin/types"
+	"github.com/tingly-dev/weixin/wechat/api"
 )
 
 // GetUpdates fetches new messages using long-polling.

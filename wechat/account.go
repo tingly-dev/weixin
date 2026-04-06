@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/tingly-dev/weixin/api"
 	"github.com/tingly-dev/weixin/types"
+	"github.com/tingly-dev/weixin/wechat/api"
 )
 
 // Account represents a single WeChat account with its API client.

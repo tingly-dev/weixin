@@ -5,7 +5,6 @@ import (
 	"context"
 	"log"
 
-	"github.com/tingly-dev/weixin/bot"
 	"github.com/tingly-dev/weixin/types"
 )
 
@@ -18,7 +17,7 @@ type WecomConfig struct {
 // WecomBot is the WeCom AI Bot.
 // One bot manages one WebSocket client connection.
 type WecomBot struct {
-	*bot.BaseBot
+	*types.BaseBot
 	config       *WecomConfig
 	client       *Client // WebSocket client
 	running      bool
@@ -53,7 +52,7 @@ func NewWecomBot(config *WecomConfig) *WecomBot {
 		Streaming: true,
 	}
 
-	b.BaseBot = bot.NewBaseBot(meta, capabilities)
+	b.BaseBot = types.NewBaseBot(meta, capabilities)
 
 	return b
 }

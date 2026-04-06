@@ -5,10 +5,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/tingly-dev/weixin/api"
 	"github.com/tingly-dev/weixin/message"
 	"github.com/tingly-dev/weixin/message/media"
 	"github.com/tingly-dev/weixin/types"
+	"github.com/tingly-dev/weixin/wechat/api"
 )
 
 // Send sends a text or mixed message.

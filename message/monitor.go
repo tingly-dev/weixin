@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/tingly-dev/weixin/api"
 	"github.com/tingly-dev/weixin/storage"
+	"github.com/tingly-dev/weixin/wechat/api"
 )
 
 const (

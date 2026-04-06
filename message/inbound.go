@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/tingly-dev/weixin/api"
 	"github.com/tingly-dev/weixin/types"
+	"github.com/tingly-dev/weixin/wechat/api"
 )
 
 // ConvertInboundMessage converts a WeixinMessage to an SDK Message.

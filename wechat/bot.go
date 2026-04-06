@@ -4,15 +4,14 @@ package wechat
 import (
 	"context"
 
-	"github.com/tingly-dev/weixin/api"
-	"github.com/tingly-dev/weixin/bot"
 	"github.com/tingly-dev/weixin/types"
+	"github.com/tingly-dev/weixin/wechat/api"
 )
 
 // WechatBot is the WeChat ilink bot implementation.
 // One bot manages one account with one API client.
 type WechatBot struct {
-	*bot.BaseBot
+	*types.BaseBot
 	config         *types.WeChatConfig
 	account        *Account        // Single account for this bot
 	accountManager *AccountManager // For loading/saving accounts
@@ -59,7 +58,7 @@ func NewWechatBotWithDataDir(config *types.WeChatConfig, dataDir string) (*Wecha
 		BlockStreaming: true,
 	}
 
-	b.BaseBot = bot.NewBaseBot(meta, capabilities)
+	b.BaseBot = types.NewBaseBot(meta, capabilities)
 
 	return b, nil
 }

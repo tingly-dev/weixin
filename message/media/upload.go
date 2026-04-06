@@ -13,9 +13,9 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/tingly-dev/weixin/api"
 	"github.com/tingly-dev/weixin/message/cdn"
 	"github.com/tingly-dev/weixin/types"
+	"github.com/tingly-dev/weixin/wechat/api"
 )
 
 // UploadedFileInfo contains information about an uploaded file.

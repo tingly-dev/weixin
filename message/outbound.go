@@ -5,9 +5,9 @@ import (
 	"encoding/base64"
 	"fmt"
 
-	"github.com/tingly-dev/weixin/api"
 	"github.com/tingly-dev/weixin/message/media"
 	"github.com/tingly-dev/weixin/types"
+	"github.com/tingly-dev/weixin/wechat/api"
 )
 
 // ConvertToOutboundMessage converts an OutboundMessage to WeChat message format for sending.
