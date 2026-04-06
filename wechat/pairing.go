@@ -174,9 +174,9 @@ func (b *WechatBot) LoginWithQrWait(ctx context.Context, accountID, qrID string)
 				LastLoginAt: time.Now(),
 			}
 
-			// Save to account manager
-			if b.accountManager != nil {
-				if err := b.accountManager.Save(account); err != nil {
+			// Save to store (if configured)
+			if b.store != nil {
+				if err := b.store.Save(account); err != nil {
 					return &types.QrCodeWaitResult{
 						Success: false,
 						Error:   fmt.Sprintf("save account: %v", err),

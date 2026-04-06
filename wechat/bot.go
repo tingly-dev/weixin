@@ -12,12 +12,12 @@ import (
 // One bot manages one account with one API client.
 type WechatBot struct {
 	*types.BaseBot
-	config         *types.WeChatConfig
-	account        *Account        // Single account for this bot
-	accountManager *AccountManager // For loading/saving accounts
+	config  *types.WeChatConfig
+	account *Account // Single account for this bot
+	store   types.AccountStore
 }
 
-// NewWechatBot creates a new WeChat bot.
+// NewWechatBot creates a new WeChat bot with default file storage.
 func NewWechatBot(config *types.WeChatConfig) (*WechatBot, error) {
 	return NewWechatBotWithDataDir(config, "")
 }
@@ -25,19 +25,25 @@ func NewWechatBot(config *types.WeChatConfig) (*WechatBot, error) {
 // NewWechatBotWithDataDir creates a new WeChat bot with a custom data directory.
 // If dataDir is empty, uses the default ~/.weixin/accounts.
 func NewWechatBotWithDataDir(config *types.WeChatConfig, dataDir string) (*WechatBot, error) {
+	var store types.AccountStore
+	if dataDir != "" {
+		store = NewAccountManagerWithDir(dataDir)
+	} else {
+		store = NewAccountManager()
+	}
+	return NewWechatBotWithStore(config, store)
+}
+
+// NewWechatBotWithStore creates a new WeChat bot with a custom account store.
+// Use NewNoopStore() if you don't want any persistence.
+func NewWechatBotWithStore(config *types.WeChatConfig, store types.AccountStore) (*WechatBot, error) {
 	if config == nil {
 		config = &types.WeChatConfig{}
 	}
 
 	b := &WechatBot{
 		config: config,
-	}
-
-	// Create account manager with custom or default directory
-	if dataDir != "" {
-		b.accountManager = NewAccountManagerWithDir(dataDir)
-	} else {
-		b.accountManager = NewAccountManager()
+		store:  store,
 	}
 
 	// Create base bot with metadata
@@ -64,8 +70,9 @@ func NewWechatBotWithDataDir(config *types.WeChatConfig, dataDir string) (*Wecha
 }
 
 // NewWechatBotWithAccount creates a new WeChat bot with an existing account.
+// The account is used directly; no store is needed for basic operations.
 func NewWechatBotWithAccount(config *types.WeChatConfig, wcAccount *types.WeChatAccount) (*WechatBot, error) {
-	b, err := NewWechatBot(config)
+	b, err := NewWechatBotWithStore(config, NewNoopStore())
 	if err != nil {
 		return nil, err
 	}
@@ -76,9 +83,9 @@ func NewWechatBotWithAccount(config *types.WeChatConfig, wcAccount *types.WeChat
 	return b, nil
 }
 
-// LoadAccount loads an account from the account manager by ID.
+// LoadAccount loads an account from the store by ID.
 func (b *WechatBot) LoadAccount(accountID string) error {
-	wcAccount, err := b.accountManager.Get(accountID)
+	wcAccount, err := b.store.Get(accountID)
 	if err != nil {
 		return &types.Error{
 			Type:    types.ErrorAccountNotFound,
@@ -89,6 +96,11 @@ func (b *WechatBot) LoadAccount(accountID string) error {
 
 	b.account = NewAccount(wcAccount)
 	return nil
+}
+
+// SaveAccount saves the current account to the store.
+func (b *WechatBot) SaveAccount(account *types.WeChatAccount) error {
+	return b.store.Save(account)
 }
 
 // Account returns the current account.
@@ -104,9 +116,9 @@ func (b *WechatBot) Client() *api.Client {
 	return b.account.Client()
 }
 
-// AccountManager returns the account manager (for loading/saving accounts).
-func (b *WechatBot) AccountManager() *AccountManager {
-	return b.accountManager
+// Store returns the account store (for loading/saving accounts).
+func (b *WechatBot) Store() types.AccountStore {
+	return b.store
 }
 
 // Config returns the bot configuration.

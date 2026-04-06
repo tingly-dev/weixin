@@ -347,3 +347,19 @@ type GetUpdatesResult struct {
 	ErrCode            int        `json:"errcode"`            // Error code (0 = success)
 	ErrMsg             string     `json:"errmsg"`             // Error message
 }
+
+// AccountStore defines the interface for account persistence.
+// Implementations can choose different storage backends (file, database, memory, etc.).
+type AccountStore interface {
+	// Save stores an account.
+	Save(account *WeChatAccount) error
+
+	// Get retrieves an account by ID.
+	Get(accountID string) (*WeChatAccount, error)
+
+	// ListIDs returns all account IDs.
+	ListIDs() ([]string, error)
+
+	// Delete removes an account.
+	Delete(accountID string) error
+}

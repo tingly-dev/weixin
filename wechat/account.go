@@ -82,7 +82,8 @@ func (a *Account) IsConfigured() bool {
 	return a.account.Configured
 }
 
-// AccountManager manages WeChat account persistence.
+// AccountManager manages WeChat account persistence using file storage.
+// It implements the types.AccountStore interface.
 type AccountManager struct {
 	baseDir string
 	mu      sync.RWMutex
@@ -177,4 +178,33 @@ func (m *AccountManager) Delete(accountID string) error {
 
 	path := m.accountPath(accountID)
 	return os.Remove(path)
+}
+
+// NoopStore is a no-op account store that doesn't persist anything.
+// Useful for stateless applications or when using external storage.
+type NoopStore struct{}
+
+// NewNoopStore creates a new no-op store.
+func NewNoopStore() *NoopStore {
+	return &NoopStore{}
+}
+
+// Save is a no-op.
+func (n *NoopStore) Save(account *types.WeChatAccount) error {
+	return nil
+}
+
+// Get returns ErrNotExist as no accounts are stored.
+func (n *NoopStore) Get(accountID string) (*types.WeChatAccount, error) {
+	return nil, os.ErrNotExist
+}
+
+// ListIDs returns an empty slice.
+func (n *NoopStore) ListIDs() ([]string, error) {
+	return []string{}, nil
+}
+
+// Delete is a no-op.
+func (n *NoopStore) Delete(accountID string) error {
+	return nil
 }

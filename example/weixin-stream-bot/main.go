@@ -88,7 +88,7 @@ func main() {
 
 // ensureAccount returns an existing account ID or runs QR login to create one.
 func ensureAccount(bot *wechat.WechatBot) (string, error) {
-	ids, err := bot.AccountManager().ListIDs()
+	ids, err := bot.Store().ListIDs()
 	if err != nil {
 		return "", err
 	}
