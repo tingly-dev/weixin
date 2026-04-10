@@ -35,7 +35,7 @@ func (c *Client) SendMessage(ctx context.Context, toUserID, contextToken string,
 			ItemList:     items,
 		},
 		BaseInfo: &BaseInfo{
-			ChannelVersion: "1.0.0",
+			ChannelVersion: SDKVersion,
 		},
 	}
 

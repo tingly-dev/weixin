@@ -3,6 +3,7 @@ package api
 
 import (
 	"context"
+	"fmt"
 )
 
 // GetUploadURL gets a pre-signed CDN upload URL.
@@ -10,12 +11,20 @@ func (c *Client) GetUploadURL(ctx context.Context, req *GetUploadURLRequest) (*G
 	if req.BaseInfo == nil {
 		req.BaseInfo = &BaseInfo{}
 	}
-	req.BaseInfo.ChannelVersion = "1.0.0"
+	req.BaseInfo.ChannelVersion = SDKVersion
 
 	resp := &GetUploadURLResponse{}
 	err := c.doRequest(ctx, "ilink/bot/getuploadurl", req, resp)
 	if err != nil {
 		return nil, err
+	}
+
+	if resp.Ret != 0 || resp.UploadParam == "" && resp.UploadFullURL == "" {
+		msg := resp.ErrMsg
+		if msg == "" {
+			msg = "no upload_param or upload_full_url returned"
+		}
+		return nil, fmt.Errorf("getUploadURL failed (ret=%d): %s", resp.Ret, msg)
 	}
 
 	return resp, nil
@@ -27,7 +36,7 @@ func (c *Client) GetConfig(ctx context.Context, ilinkUserID, contextToken string
 		IlinkUserID:  ilinkUserID,
 		ContextToken: contextToken,
 		BaseInfo: &BaseInfo{
-			ChannelVersion: "1.0.0",
+			ChannelVersion: SDKVersion,
 		},
 	}
 
@@ -47,7 +56,7 @@ func (c *Client) SendTyping(ctx context.Context, ilinkUserID, typingTicket strin
 		TypingTicket: typingTicket,
 		Status:       status,
 		BaseInfo: &BaseInfo{
-			ChannelVersion: "1.0.0",
+			ChannelVersion: SDKVersion,
 		},
 	}
 

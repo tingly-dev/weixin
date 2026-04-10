@@ -11,7 +11,7 @@ func (c *Client) GetUpdates(ctx context.Context, syncBuf string) (*GetUpdatesRes
 	req := &GetUpdatesRequest{
 		GetUpdatesBuf: syncBuf,
 		BaseInfo: &BaseInfo{
-			ChannelVersion: "1.0.0",
+			ChannelVersion: SDKVersion,
 		},
 	}
 
@@ -33,7 +33,7 @@ func (c *Client) GetUpdatesWithTimeout(ctx context.Context, syncBuf string, time
 	req := &GetUpdatesRequest{
 		GetUpdatesBuf: syncBuf,
 		BaseInfo: &BaseInfo{
-			ChannelVersion: "1.0.0",
+			ChannelVersion: SDKVersion,
 		},
 	}
 
