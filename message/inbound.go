@@ -2,6 +2,8 @@
 package message
 
 import (
+	"encoding/base64"
+	"encoding/hex"
 	"fmt"
 	"time"
 
@@ -41,10 +43,13 @@ func ConvertInboundMessage(msg *api.WeixinMessage, accountID, cdnBaseURL string)
 						a.URL = item.ImageItem.Media.FullURL
 					}
 				}
-				// Image also has a legacy top-level aeskey field
-				if a.AESKey == "" && item.ImageItem.AESKey != "" {
-					a.AESKey = item.ImageItem.AESKey
+				// Image top-level aeskey field is hex-encoded; convert to base64 to match
+			// media.aes_key format expected by parseAesKey in the CDN download layer.
+			if a.AESKey == "" && item.ImageItem.AESKey != "" {
+				if b, err := hex.DecodeString(item.ImageItem.AESKey); err == nil {
+					a.AESKey = base64.StdEncoding.EncodeToString(b)
 				}
+			}
 				attachments = append(attachments, a)
 			}
 
