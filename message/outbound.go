@@ -3,6 +3,7 @@ package message
 
 import (
 	"encoding/base64"
+	"encoding/hex"
 	"fmt"
 
 	"github.com/tingly-dev/weixin/message/media"
@@ -162,6 +163,12 @@ func GetMediaType(msg *types.OutboundMessage) int {
 	}
 }
 
+// aesKeyToBase64 encodes a raw AES key as base64 of its hex string,
+// matching the reference implementation: Buffer.from(aeskey_hex).toString("base64").
+func aesKeyToBase64(rawKey []byte) string {
+	return base64.StdEncoding.EncodeToString([]byte(hex.EncodeToString(rawKey)))
+}
+
 // BuildImageItemFromUpload creates an image MessageItem from uploaded file info.
 func BuildImageItemFromUpload(uploaded *media.UploadedFileInfo, midSize int64) api.MessageItem {
 	return api.MessageItem{
@@ -169,7 +176,7 @@ func BuildImageItemFromUpload(uploaded *media.UploadedFileInfo, midSize int64) a
 		ImageItem: &api.ImageItem{
 			Media: &api.CDNMedia{
 				EncryptQueryParam: uploaded.DownloadEncryptedQueryParam,
-				AESKey:            base64.StdEncoding.EncodeToString(uploaded.AESKey),
+				AESKey:            aesKeyToBase64(uploaded.AESKey),
 				EncryptType:       1,
 			},
 			MidSize: midSize,
@@ -184,7 +191,7 @@ func BuildVideoItemFromUpload(uploaded *media.UploadedFileInfo, videoSize int64)
 		VideoItem: &api.VideoItem{
 			Media: &api.CDNMedia{
 				EncryptQueryParam: uploaded.DownloadEncryptedQueryParam,
-				AESKey:            base64.StdEncoding.EncodeToString(uploaded.AESKey),
+				AESKey:            aesKeyToBase64(uploaded.AESKey),
 				EncryptType:       1,
 			},
 			VideoSize: videoSize,
@@ -199,7 +206,7 @@ func BuildFileItemFromUpload(uploaded *media.UploadedFileInfo, fileName string, 
 		FileItem: &api.FileItem{
 			Media: &api.CDNMedia{
 				EncryptQueryParam: uploaded.DownloadEncryptedQueryParam,
-				AESKey:            base64.StdEncoding.EncodeToString(uploaded.AESKey),
+				AESKey:            aesKeyToBase64(uploaded.AESKey),
 				EncryptType:       1,
 			},
 			FileName: fileName,
