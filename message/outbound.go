@@ -3,7 +3,6 @@ package message
 
 import (
 	"encoding/base64"
-	"encoding/hex"
 	"fmt"
 
 	"github.com/tingly-dev/weixin/message/media"
@@ -163,10 +162,10 @@ func GetMediaType(msg *types.OutboundMessage) int {
 	}
 }
 
-// aesKeyToBase64 encodes a raw AES key as base64 of its hex string,
-// matching the reference implementation: Buffer.from(aeskey_hex).toString("base64").
+// aesKeyToBase64 encodes a raw AES key as base64 of its raw bytes,
+// matching the reference implementation: Buffer.from(aeskey).toString("base64").
 func aesKeyToBase64(rawKey []byte) string {
-	return base64.StdEncoding.EncodeToString([]byte(hex.EncodeToString(rawKey)))
+	return base64.StdEncoding.EncodeToString(rawKey)
 }
 
 // BuildImageItemFromUpload creates an image MessageItem from uploaded file info.
