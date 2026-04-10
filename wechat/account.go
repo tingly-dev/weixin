@@ -21,6 +21,9 @@ type Account struct {
 
 // NewAccount creates a new account with API client from a WeChatAccount.
 func NewAccount(wcAccount *types.WeChatAccount) *Account {
+	if wcAccount.BaseURL == "" {
+		wcAccount.BaseURL = DefaultBaseURL
+	}
 	if wcAccount.CDNBaseURL == "" {
 		wcAccount.CDNBaseURL = DefaultCDNBaseURL
 	}
