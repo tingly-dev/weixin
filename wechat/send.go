@@ -53,7 +53,7 @@ func (b *WechatBot) SendMedia(ctx context.Context, msg *types.OutboundMessage) (
 	}
 
 	// Upload media to CDN (preserving existing pipeline)
-	uploaded, err := media.UploadMediaToCDN(ctx, msg.FilePath, b.account.ID(), account.BaseURL, account.CDNBaseURL, account.BotToken, mediaType)
+	uploaded, err := media.UploadMediaToCDN(ctx, msg.FilePath, msg.To, account.BaseURL, account.CDNBaseURL, account.BotToken, mediaType)
 	if err != nil {
 		return nil, fmt.Errorf("upload media: %w", err)
 	}

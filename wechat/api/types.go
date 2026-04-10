@@ -152,6 +152,8 @@ type GetUploadURLRequest struct {
 
 // GetUploadURLResponse represents the getUploadUrl response.
 type GetUploadURLResponse struct {
+	Ret              int32  `json:"ret"`
+	ErrMsg           string `json:"errmsg,omitempty"`
 	UploadParam      string `json:"upload_param,omitempty"`
 	ThumbUploadParam string `json:"thumb_upload_param,omitempty"`
 	UploadFullURL    string `json:"upload_full_url,omitempty"`
