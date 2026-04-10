@@ -27,7 +27,6 @@ import (
 )
 
 const (
-	defaultBaseURL    = "https://ilinkai.weixin.qq.com"
 	longPollTimeoutMs = 35000
 )
 
@@ -38,12 +37,8 @@ func main() {
 	log.Println("WeChat Echo Bot")
 	log.Println(strings.Repeat("=", 60))
 
-	// Create bot with pwd as data directory
-	config := &types.WeChatConfig{
-		BaseURL: defaultBaseURL,
-		BotType: "3",
-	}
-	bot, err := wechat.NewWechatBotWithDataDir(config, ".")
+	// Create bot with pwd as data directory (BaseURL and BotType use defaults)
+	bot, err := wechat.NewWechatBotWithDataDir(nil, ".")
 	if err != nil {
 		log.Fatalf("Failed to create bot: %v", err)
 	}

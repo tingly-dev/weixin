@@ -8,6 +8,12 @@ import (
 	"github.com/tingly-dev/weixin/wechat/api"
 )
 
+// Default WeChat service URLs.
+const (
+	DefaultBaseURL    = "https://ilinkai.weixin.qq.com"
+	DefaultCDNBaseURL = "https://novac2c.cdn.weixin.qq.com/c2c"
+)
+
 // WechatBot is the WeChat ilink bot implementation.
 // One bot manages one account with one API client.
 type WechatBot struct {
@@ -39,6 +45,12 @@ func NewWechatBotWithDataDir(config *types.WeChatConfig, dataDir string) (*Wecha
 func NewWechatBotWithStore(config *types.WeChatConfig, store types.AccountStore) (*WechatBot, error) {
 	if config == nil {
 		config = &types.WeChatConfig{}
+	}
+	if config.BaseURL == "" {
+		config.BaseURL = DefaultBaseURL
+	}
+	if config.BotType == "" {
+		config.BotType = defaultBotType
 	}
 
 	b := &WechatBot{

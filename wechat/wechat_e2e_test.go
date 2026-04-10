@@ -13,10 +13,6 @@ import (
 	"github.com/tingly-dev/weixin/wechat"
 )
 
-const (
-	defaultCDNBaseURL = "https://novac2c.cdn.weixin.qq.com/c2c"
-)
-
 // loadTestAccount loads account from default.json in the project root.
 func loadTestAccount(t *testing.T) *types.WeChatAccount {
 	t.Helper()
@@ -40,7 +36,7 @@ func loadTestAccount(t *testing.T) *types.WeChatAccount {
 	}
 
 	if account.CDNBaseURL == "" {
-		account.CDNBaseURL = defaultCDNBaseURL
+		account.CDNBaseURL = wechat.DefaultCDNBaseURL
 	}
 
 	return &account
