@@ -70,7 +70,7 @@ func (b *WechatBot) GetUpdates(ctx context.Context, syncBuf string) (*types.GetU
 				message.SetContextToken(b.account.ID(), msg.FromUserID, msg.ContextToken)
 			}
 
-			channelMsg := message.ConvertInboundMessage(&msg, b.account.ID())
+			channelMsg := message.ConvertInboundMessage(&msg, b.account.ID(), b.account.WeChatAccount().CDNBaseURL)
 			if channelMsg != nil {
 				// Include context token in message metadata
 				if channelMsg.Metadata == nil {
@@ -136,7 +136,7 @@ func (m *Monitor) Start(ctx context.Context) error {
 	m.monitor = message.NewMonitor(m.bot.account.ID(), account.BaseURL, account.BotToken)
 	m.monitor.SetOnMessage(func(ctx context.Context, msg *api.WeixinMessage) error {
 		// Convert to types.Message
-		channelMsg := message.ConvertInboundMessage(msg, m.bot.account.ID())
+		channelMsg := message.ConvertInboundMessage(msg, m.bot.account.ID(), m.bot.account.WeChatAccount().CDNBaseURL)
 		if channelMsg != nil && m.handler != nil {
 			return m.handler(ctx, channelMsg)
 		}

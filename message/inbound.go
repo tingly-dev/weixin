@@ -10,7 +10,8 @@ import (
 )
 
 // ConvertInboundMessage converts a WeixinMessage to an SDK Message.
-func ConvertInboundMessage(msg *api.WeixinMessage, accountID string) *types.Message {
+// cdnBaseURL is used to populate CDN fields in attachments so callers can download media.
+func ConvertInboundMessage(msg *api.WeixinMessage, accountID, cdnBaseURL string) *types.Message {
 	if msg == nil {
 		return nil
 	}
@@ -28,33 +29,64 @@ func ConvertInboundMessage(msg *api.WeixinMessage, accountID string) *types.Mess
 
 		case api.MessageItemTypeImage:
 			if item.ImageItem != nil {
-				attachments = append(attachments, types.Attachment{
-					URL:         item.ImageItem.URL,
+				a := types.Attachment{
 					ContentType: "image",
-				})
+					URL:         item.ImageItem.URL,
+				}
+				if item.ImageItem.Media != nil {
+					a.EncryptQueryParam = item.ImageItem.Media.EncryptQueryParam
+					a.AESKey = item.ImageItem.Media.AESKey
+					a.CDNBaseURL = cdnBaseURL
+					if item.ImageItem.Media.FullURL != "" {
+						a.URL = item.ImageItem.Media.FullURL
+					}
+				}
+				// Image also has a legacy top-level aeskey field
+				if a.AESKey == "" && item.ImageItem.AESKey != "" {
+					a.AESKey = item.ImageItem.AESKey
+				}
+				attachments = append(attachments, a)
 			}
 
 		case api.MessageItemTypeVoice:
 			if item.VoiceItem != nil {
-				attachments = append(attachments, types.Attachment{
+				a := types.Attachment{
 					ContentType: "audio",
 					FileName:    fmt.Sprintf("voice_%d.silk", msg.CreateTimeMs),
-				})
+				}
+				if item.VoiceItem.Media != nil {
+					a.EncryptQueryParam = item.VoiceItem.Media.EncryptQueryParam
+					a.AESKey = item.VoiceItem.Media.AESKey
+					a.CDNBaseURL = cdnBaseURL
+				}
+				attachments = append(attachments, a)
 			}
 
 		case api.MessageItemTypeFile:
 			if item.FileItem != nil {
-				attachments = append(attachments, types.Attachment{
-					FileName:    item.FileItem.FileName,
+				a := types.Attachment{
 					ContentType: "file",
-				})
+					FileName:    item.FileItem.FileName,
+				}
+				if item.FileItem.Media != nil {
+					a.EncryptQueryParam = item.FileItem.Media.EncryptQueryParam
+					a.AESKey = item.FileItem.Media.AESKey
+					a.CDNBaseURL = cdnBaseURL
+				}
+				attachments = append(attachments, a)
 			}
 
 		case api.MessageItemTypeVideo:
 			if item.VideoItem != nil {
-				attachments = append(attachments, types.Attachment{
+				a := types.Attachment{
 					ContentType: "video",
-				})
+				}
+				if item.VideoItem.Media != nil {
+					a.EncryptQueryParam = item.VideoItem.Media.EncryptQueryParam
+					a.AESKey = item.VideoItem.Media.AESKey
+					a.CDNBaseURL = cdnBaseURL
+				}
+				attachments = append(attachments, a)
 			}
 		}
 	}

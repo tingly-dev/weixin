@@ -99,6 +99,12 @@ type Attachment struct {
 	FileName    string `json:"fileName,omitempty"`
 	Size        int64  `json:"size,omitempty"`
 	ContentType string `json:"contentType,omitempty"`
+
+	// CDN fields for encrypted WeChat media (image/file/voice/video).
+	// Use DownloadAndDecryptBuffer to fetch the file content.
+	EncryptQueryParam string `json:"encryptQueryParam,omitempty"`
+	AESKey            string `json:"aesKey,omitempty"`
+	CDNBaseURL        string `json:"cdnBaseUrl,omitempty"`
 }
 
 // OutboundMessage represents a message to be sent.
