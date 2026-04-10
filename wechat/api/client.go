@@ -58,7 +58,9 @@ func (c *Client) buildHeaders(body []byte) map[string]string {
 	if _, err := rand.Read(uinBytes); err != nil {
 		uinBytes = []byte{0, 0, 0, 0}
 	}
-	uin := base64.StdEncoding.EncodeToString(uinBytes)
+	// Encode as: random uint32 -> decimal string -> base64 (matches reference implementation)
+	uint32Val := uint32(uinBytes[0])<<24 | uint32(uinBytes[1])<<16 | uint32(uinBytes[2])<<8 | uint32(uinBytes[3])
+	uin := base64.StdEncoding.EncodeToString([]byte(strconv.FormatUint(uint64(uint32Val), 10)))
 
 	headers := map[string]string{
 		"Content-Type":            "application/json",
