@@ -44,7 +44,7 @@ func loadTestAccount(t *testing.T) *types.WeChatAccount {
 
 func newTestBot(t *testing.T, account *types.WeChatAccount) *wechat.WechatBot {
 	t.Helper()
-	bot, err := wechat.NewWechatBotWithAccount(&types.WeChatConfig{BaseURL: account.BaseURL}, account)
+	bot, err := wechat.NewWechatBot(wechat.WithAccount(account))
 	if err != nil {
 		t.Fatalf("create bot: %v", err)
 	}

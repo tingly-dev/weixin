@@ -19,38 +19,72 @@ const (
 type WechatBot struct {
 	*types.BaseBot
 	config  *types.WeChatConfig
-	account *Account // Single account for this bot
+	account *Account
 	store   types.AccountStore
 }
 
-// NewWechatBot creates a new WeChat bot with default file storage.
-func NewWechatBot(config *types.WeChatConfig) (*WechatBot, error) {
-	return NewWechatBotWithDataDir(config, "")
+// Option configures a WechatBot.
+type Option func(*botOptions)
+
+type botOptions struct {
+	baseURL  string
+	botType  string
+	dataDir  string
+	store    types.AccountStore
+	account  *types.WeChatAccount
 }
 
-// NewWechatBotWithDataDir creates a new WeChat bot with a custom data directory.
-// If dataDir is empty, uses the default ~/.weixin/accounts.
-func NewWechatBotWithDataDir(config *types.WeChatConfig, dataDir string) (*WechatBot, error) {
+// WithBaseURL overrides the default API base URL.
+func WithBaseURL(url string) Option {
+	return func(o *botOptions) { o.baseURL = url }
+}
+
+// WithDataDir sets a custom directory for account persistence.
+func WithDataDir(dir string) Option {
+	return func(o *botOptions) { o.dataDir = dir }
+}
+
+// WithStore sets a custom account store (overrides WithDataDir).
+func WithStore(store types.AccountStore) Option {
+	return func(o *botOptions) { o.store = store }
+}
+
+// WithAccount sets a pre-configured account (skips store/login).
+func WithAccount(account *types.WeChatAccount) Option {
+	return func(o *botOptions) { o.account = account }
+}
+
+// NewWechatBot creates a WeChat bot. All settings have sensible defaults.
+//
+// Examples:
+//
+//	bot, err := wechat.NewWechatBot()                          // all defaults
+//	bot, err := wechat.NewWechatBot(wechat.WithDataDir("."))   // custom data dir
+//	bot, err := wechat.NewWechatBot(wechat.WithAccount(acct))  // existing account
+func NewWechatBot(opts ...Option) (*WechatBot, error) {
+	o := &botOptions{
+		baseURL: DefaultBaseURL,
+		botType: defaultBotType,
+	}
+	for _, opt := range opts {
+		opt(o)
+	}
+
+	// Resolve store
 	var store types.AccountStore
-	if dataDir != "" {
-		store = NewAccountManagerWithDir(dataDir)
+	if o.store != nil {
+		store = o.store
+	} else if o.account != nil {
+		store = NewNoopStore()
+	} else if o.dataDir != "" {
+		store = NewAccountManagerWithDir(o.dataDir)
 	} else {
 		store = NewAccountManager()
 	}
-	return NewWechatBotWithStore(config, store)
-}
 
-// NewWechatBotWithStore creates a new WeChat bot with a custom account store.
-// Use NewNoopStore() if you don't want any persistence.
-func NewWechatBotWithStore(config *types.WeChatConfig, store types.AccountStore) (*WechatBot, error) {
-	if config == nil {
-		config = &types.WeChatConfig{}
-	}
-	if config.BaseURL == "" {
-		config.BaseURL = DefaultBaseURL
-	}
-	if config.BotType == "" {
-		config.BotType = defaultBotType
+	config := &types.WeChatConfig{
+		BaseURL: o.baseURL,
+		BotType: o.botType,
 	}
 
 	b := &WechatBot{
@@ -58,7 +92,6 @@ func NewWechatBotWithStore(config *types.WeChatConfig, store types.AccountStore)
 		store:  store,
 	}
 
-	// Create base bot with metadata
 	meta := &types.Meta{
 		Label:          "WeChat",
 		SelectionLabel: "WeChat",
@@ -68,29 +101,17 @@ func NewWechatBotWithStore(config *types.WeChatConfig, store types.AccountStore)
 		SystemImage:    "message.fill",
 		Version:        "1.0.0",
 	}
-
 	capabilities := &types.Capabilities{
 		ChatTypes:      []types.ChatType{types.ChatTypeDirect},
 		Text:           true,
 		Media:          true,
 		BlockStreaming: true,
 	}
-
 	b.BaseBot = types.NewBaseBot(meta, capabilities)
 
-	return b, nil
-}
-
-// NewWechatBotWithAccount creates a new WeChat bot with an existing account.
-// The account is used directly; no store is needed for basic operations.
-func NewWechatBotWithAccount(config *types.WeChatConfig, wcAccount *types.WeChatAccount) (*WechatBot, error) {
-	b, err := NewWechatBotWithStore(config, NewNoopStore())
-	if err != nil {
-		return nil, err
+	if o.account != nil {
+		b.account = NewAccount(o.account)
 	}
-
-	// Set account
-	b.account = NewAccount(wcAccount)
 
 	return b, nil
 }

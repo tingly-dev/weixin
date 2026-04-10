@@ -38,7 +38,7 @@ func main() {
 	log.Println(strings.Repeat("=", 60))
 
 	// Create bot with pwd as data directory (BaseURL and BotType use defaults)
-	bot, err := wechat.NewWechatBotWithDataDir(nil, ".")
+	bot, err := wechat.NewWechatBot(wechat.WithDataDir("."))
 	if err != nil {
 		log.Fatalf("Failed to create bot: %v", err)
 	}
