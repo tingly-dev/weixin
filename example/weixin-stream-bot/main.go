@@ -65,6 +65,14 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	// Connect/Disconnect bracket the polling loop so the upstream server
+	// sees a clean online → offline transition (NotifyStart on connect,
+	// NotifyStop on disconnect via a detached context).
+	if err := bot.Connect(ctx); err != nil {
+		log.Fatalf("Failed to connect: %v", err)
+	}
+	defer bot.Disconnect()
+
 	go pollLoop(ctx, bot)
 
 	log.Println(strings.Repeat("=", 60))

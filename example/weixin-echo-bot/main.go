@@ -55,6 +55,14 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	// Connect activates the bot and notifies upstream that this client is
+	// online (best-effort). Disconnect symmetrically sends NotifyStop on a
+	// detached context so it survives the Ctrl+C path below.
+	if err := bot.Connect(ctx); err != nil {
+		log.Fatalf("Failed to connect: %v", err)
+	}
+	defer bot.Disconnect()
+
 	go pollLoop(ctx, bot)
 
 	log.Println(strings.Repeat("=", 60))
