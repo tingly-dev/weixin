@@ -1,60 +1,72 @@
-// Package contexttoken provides context token management for WeChat channel.
+// Package message provides context token management for WeChat channel.
 package message
 
 import (
 	"sync"
 )
 
+// contextTokenStore is keyed by accountID then by toUserID. The reference
+// implementation uses a single Map<string,string> with composite keys, but
+// per-account locking keeps writes safe under concurrent inbound traffic
+// without contending across accounts.
 var (
-	// contextTokenMap stores context tokens per (accountID, toUserID) pair.
-	// contextTokenMap[accountID][toUserID] = contextToken
-	contextTokenMap sync.Map // map[string]map[string]string
+	contextTokenMu    sync.RWMutex
+	contextTokenStore = make(map[string]map[string]string)
 )
 
 // SetContextToken stores a context token for a given conversation.
+// Empty tokens are dropped (mirrors upstream behaviour: only persist real
+// tokens received from the server).
 func SetContextToken(accountID, toUserID, token string) {
 	if token == "" {
 		return
 	}
+	contextTokenMu.Lock()
+	defer contextTokenMu.Unlock()
 
-	// Get or create the account's token map
-	accountTokens, _ := contextTokenMap.LoadOrStore(accountID, make(map[string]string))
-	tokens := accountTokens.(map[string]string)
-
-	// Store the token (use a mutex for the inner map)
-	// Note: In production, use a more sophisticated locking mechanism
+	tokens, ok := contextTokenStore[accountID]
+	if !ok {
+		tokens = make(map[string]string)
+		contextTokenStore[accountID] = tokens
+	}
 	tokens[toUserID] = token
 }
 
 // GetContextToken retrieves a context token for a given conversation.
 // Returns empty string if not found.
 func GetContextToken(accountID, toUserID string) string {
-	value, ok := contextTokenMap.Load(accountID)
+	contextTokenMu.RLock()
+	defer contextTokenMu.RUnlock()
+
+	tokens, ok := contextTokenStore[accountID]
 	if !ok {
 		return ""
 	}
-
-	tokens := value.(map[string]string)
 	return tokens[toUserID]
 }
 
 // ClearContextToken removes a context token for a given conversation.
 func ClearContextToken(accountID, toUserID string) {
-	value, ok := contextTokenMap.Load(accountID)
-	if !ok {
-		return
-	}
+	contextTokenMu.Lock()
+	defer contextTokenMu.Unlock()
 
-	tokens := value.(map[string]string)
-	delete(tokens, toUserID)
+	if tokens, ok := contextTokenStore[accountID]; ok {
+		delete(tokens, toUserID)
+	}
 }
 
 // ClearAccountTokens removes all context tokens for an account.
 func ClearAccountTokens(accountID string) {
-	contextTokenMap.Delete(accountID)
+	contextTokenMu.Lock()
+	defer contextTokenMu.Unlock()
+
+	delete(contextTokenStore, accountID)
 }
 
 // ResetForTest clears internal state - only for tests.
 func ResetForTest() {
-	contextTokenMap = sync.Map{}
+	contextTokenMu.Lock()
+	defer contextTokenMu.Unlock()
+
+	contextTokenStore = make(map[string]map[string]string)
 }

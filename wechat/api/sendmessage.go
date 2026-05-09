@@ -34,9 +34,7 @@ func (c *Client) SendMessage(ctx context.Context, toUserID, contextToken string,
 			ContextToken: contextToken,
 			ItemList:     items,
 		},
-		BaseInfo: &BaseInfo{
-			ChannelVersion: SDKVersion,
-		},
+		BaseInfo: c.BuildBaseInfo(),
 	}
 
 	return c.doRequest(ctx, "ilink/bot/sendmessage", req, nil)

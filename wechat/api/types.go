@@ -181,6 +181,36 @@ type SendTypingRequest struct {
 	BaseInfo     *BaseInfo `json:"base_info,omitempty"`
 }
 
+// Typing status constants for SendTyping.
+const (
+	TypingStatusTyping = 1
+	TypingStatusCancel = 2
+)
+
+// NotifyStartRequest is sent when the channel client starts.
+// proto: NotifyStartReq.
+type NotifyStartRequest struct {
+	BaseInfo *BaseInfo `json:"base_info,omitempty"`
+}
+
+// NotifyStartResponse is the response to a NotifyStart call.
+type NotifyStartResponse struct {
+	Ret    int32  `json:"ret,omitempty"`
+	ErrMsg string `json:"errmsg,omitempty"`
+}
+
+// NotifyStopRequest is sent when the channel client stops.
+// proto: NotifyStopReq.
+type NotifyStopRequest struct {
+	BaseInfo *BaseInfo `json:"base_info,omitempty"`
+}
+
+// NotifyStopResponse is the response to a NotifyStop call.
+type NotifyStopResponse struct {
+	Ret    int32  `json:"ret,omitempty"`
+	ErrMsg string `json:"errmsg,omitempty"`
+}
+
 // QRCodeRequest represents the get_bot_qrcode request (query params).
 type QRCodeRequest struct {
 	BotType string `json:"bot_type,omitempty"` // Default: "3"
@@ -190,6 +220,18 @@ type QRCodeRequest struct {
 type QRCodeResponse struct {
 	Qrcode           string `json:"qrcode,omitempty"`
 	QrcodeImgContent string `json:"qrcode_img_content,omitempty"`
+}
+
+// BaseInfo is attached to every outgoing CGI request.
+//
+// BotAgent mirrors HTTP `User-Agent`: a self-declared identifier of the
+// upstream bot/app for observability purposes only (not for auth or routing).
+// Format: UA-style `Name/Version` tokens, optionally followed by
+// `(comment)`. ASCII only, total length <= 256 bytes after sanitization.
+// Defaults to "OpenClaw" when unset on the wire.
+type BaseInfo struct {
+	ChannelVersion string `json:"channel_version,omitempty"`
+	BotAgent       string `json:"bot_agent,omitempty"`
 }
 
 // QRStatusResponse represents the get_qrcode_status response.

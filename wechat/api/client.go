@@ -21,9 +21,12 @@ const (
 	DefaultAPITimeout = 15 * time.Second
 	// DefaultConfigTimeout is the default timeout for config requests.
 	DefaultConfigTimeout = 10 * time.Second
-	// SDKVersion is the version reported in iLink-App-ClientVersion header.
-	// Encoded as 0x00MMNNPP uint32.
-	SDKVersion = "2.1.1"
+	// SDKVersion is the version reported in iLink-App-ClientVersion header
+	// and in BaseInfo.channel_version. Encoded as 0x00MMNNPP uint32.
+	SDKVersion = "2.4.2"
+	// DefaultBotAgent is the BaseInfo.bot_agent fallback when none is set.
+	// Mirrors the implicit "no UA" fallback for HTTP User-Agent.
+	DefaultBotAgent = "OpenClaw"
 	// ilinkAppID is the app ID sent in iLink-App-Id header.
 	ilinkAppID = "bot"
 )
@@ -33,6 +36,7 @@ type Client struct {
 	baseURL    string
 	httpClient *http.Client
 	botToken   string
+	botAgent   string
 }
 
 // NewClient creates a new WeChat API client.
@@ -44,11 +48,6 @@ func NewClient(baseURL, botToken string) *Client {
 		},
 		botToken: botToken,
 	}
-}
-
-// BaseInfo represents base info sent with each request.
-type BaseInfo struct {
-	ChannelVersion string `json:"channel_version,omitempty"`
 }
 
 // buildHeaders creates the required headers for WeChat API.
@@ -160,4 +159,19 @@ func (c *Client) SetBotToken(token string) {
 // GetBotToken returns the current bot token.
 func (c *Client) GetBotToken() string {
 	return c.botToken
+}
+
+// SetBotAgent sets the BaseInfo.bot_agent value sent with every request.
+// The value is sanitized at send time; pass an empty string to fall back to
+// DefaultBotAgent.
+func (c *Client) SetBotAgent(agent string) {
+	c.botAgent = agent
+}
+
+// BuildBaseInfo returns the BaseInfo payload to attach to every API request.
+func (c *Client) BuildBaseInfo() *BaseInfo {
+	return &BaseInfo{
+		ChannelVersion: SDKVersion,
+		BotAgent:       SanitizeBotAgent(c.botAgent),
+	}
 }

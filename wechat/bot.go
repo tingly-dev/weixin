@@ -18,9 +18,10 @@ const (
 // One bot manages one account with one API client.
 type WechatBot struct {
 	*types.BaseBot
-	config  *types.WeChatConfig
-	account *Account
-	store   types.AccountStore
+	config   *types.WeChatConfig
+	account  *Account
+	store    types.AccountStore
+	botAgent string
 }
 
 // Option configures a WechatBot.
@@ -30,6 +31,7 @@ type botOptions struct {
 	baseURL  string
 	botType  string
 	dataDir  string
+	botAgent string
 	store    types.AccountStore
 	account  *types.WeChatAccount
 }
@@ -37,6 +39,13 @@ type botOptions struct {
 // WithBaseURL overrides the default API base URL.
 func WithBaseURL(url string) Option {
 	return func(o *botOptions) { o.baseURL = url }
+}
+
+// WithBotAgent sets the BaseInfo.bot_agent value sent on every API request.
+// The value is sanitized into UA-style `Name/Version` tokens before being
+// transmitted; pass empty to fall back to api.DefaultBotAgent.
+func WithBotAgent(agent string) Option {
+	return func(o *botOptions) { o.botAgent = agent }
 }
 
 // WithDataDir sets a custom directory for account persistence.
@@ -88,8 +97,9 @@ func NewWechatBot(opts ...Option) (*WechatBot, error) {
 	}
 
 	b := &WechatBot{
-		config: config,
-		store:  store,
+		config:   config,
+		store:    store,
+		botAgent: o.botAgent,
 	}
 
 	meta := &types.Meta{
@@ -111,9 +121,21 @@ func NewWechatBot(opts ...Option) (*WechatBot, error) {
 
 	if o.account != nil {
 		b.account = NewAccount(o.account)
+		b.applyBotAgent()
 	}
 
 	return b, nil
+}
+
+// applyBotAgent propagates the configured bot agent (if any) to the
+// current account's API client. Safe to call when no account is loaded.
+func (b *WechatBot) applyBotAgent() {
+	if b.account == nil || b.botAgent == "" {
+		return
+	}
+	if c := b.account.Client(); c != nil {
+		c.SetBotAgent(b.botAgent)
+	}
 }
 
 // LoadAccount loads an account from the store by ID.
@@ -128,6 +150,7 @@ func (b *WechatBot) LoadAccount(accountID string) error {
 	}
 
 	b.account = NewAccount(wcAccount)
+	b.applyBotAgent()
 	return nil
 }
 
