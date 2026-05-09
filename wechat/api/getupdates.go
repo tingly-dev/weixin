@@ -10,9 +10,7 @@ import (
 func (c *Client) GetUpdates(ctx context.Context, syncBuf string) (*GetUpdatesResponse, error) {
 	req := &GetUpdatesRequest{
 		GetUpdatesBuf: syncBuf,
-		BaseInfo: &BaseInfo{
-			ChannelVersion: SDKVersion,
-		},
+		BaseInfo:      c.BuildBaseInfo(),
 	}
 
 	resp := &GetUpdatesResponse{}
@@ -32,9 +30,7 @@ func (c *Client) GetUpdates(ctx context.Context, syncBuf string) (*GetUpdatesRes
 func (c *Client) GetUpdatesWithTimeout(ctx context.Context, syncBuf string, timeout time.Duration) (*GetUpdatesResponse, error) {
 	req := &GetUpdatesRequest{
 		GetUpdatesBuf: syncBuf,
-		BaseInfo: &BaseInfo{
-			ChannelVersion: SDKVersion,
-		},
+		BaseInfo:      c.BuildBaseInfo(),
 	}
 
 	resp := &GetUpdatesResponse{}

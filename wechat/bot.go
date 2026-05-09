@@ -3,6 +3,7 @@ package wechat
 
 import (
 	"context"
+	"log"
 
 	"github.com/tingly-dev/weixin/types"
 	"github.com/tingly-dev/weixin/wechat/api"
@@ -18,25 +19,46 @@ const (
 // One bot manages one account with one API client.
 type WechatBot struct {
 	*types.BaseBot
-	config  *types.WeChatConfig
-	account *Account
-	store   types.AccountStore
+	config          *types.WeChatConfig
+	account         *Account
+	store           types.AccountStore
+	botAgent        string
+	lifecycleNotify bool
 }
 
 // Option configures a WechatBot.
 type Option func(*botOptions)
 
 type botOptions struct {
-	baseURL  string
-	botType  string
-	dataDir  string
-	store    types.AccountStore
-	account  *types.WeChatAccount
+	baseURL         string
+	botType         string
+	dataDir         string
+	botAgent        string
+	lifecycleNotify bool
+	store           types.AccountStore
+	account         *types.WeChatAccount
 }
 
 // WithBaseURL overrides the default API base URL.
 func WithBaseURL(url string) Option {
 	return func(o *botOptions) { o.baseURL = url }
+}
+
+// WithBotAgent sets the BaseInfo.bot_agent value sent on every API request.
+// The value is sanitized into UA-style `Name/Version` tokens before being
+// transmitted; pass empty to fall back to api.DefaultBotAgent.
+func WithBotAgent(agent string) Option {
+	return func(o *botOptions) { o.botAgent = agent }
+}
+
+// WithLifecycleNotify toggles automatic NotifyStart on Connect and
+// NotifyStop on Disconnect. Enabled by default; pass false to take full
+// manual control via Client.NotifyStart / Client.NotifyStop.
+//
+// Notify failures are logged but never returned: lifecycle reporting must
+// not block bot startup or shutdown.
+func WithLifecycleNotify(enabled bool) Option {
+	return func(o *botOptions) { o.lifecycleNotify = enabled }
 }
 
 // WithDataDir sets a custom directory for account persistence.
@@ -63,8 +85,9 @@ func WithAccount(account *types.WeChatAccount) Option {
 //	bot, err := wechat.NewWechatBot(wechat.WithAccount(acct))  // existing account
 func NewWechatBot(opts ...Option) (*WechatBot, error) {
 	o := &botOptions{
-		baseURL: DefaultBaseURL,
-		botType: defaultBotType,
+		baseURL:         DefaultBaseURL,
+		botType:         defaultBotType,
+		lifecycleNotify: true,
 	}
 	for _, opt := range opts {
 		opt(o)
@@ -88,8 +111,10 @@ func NewWechatBot(opts ...Option) (*WechatBot, error) {
 	}
 
 	b := &WechatBot{
-		config: config,
-		store:  store,
+		config:          config,
+		store:           store,
+		botAgent:        o.botAgent,
+		lifecycleNotify: o.lifecycleNotify,
 	}
 
 	meta := &types.Meta{
@@ -111,9 +136,21 @@ func NewWechatBot(opts ...Option) (*WechatBot, error) {
 
 	if o.account != nil {
 		b.account = NewAccount(o.account)
+		b.applyBotAgent()
 	}
 
 	return b, nil
+}
+
+// applyBotAgent propagates the configured bot agent (if any) to the
+// current account's API client. Safe to call when no account is loaded.
+func (b *WechatBot) applyBotAgent() {
+	if b.account == nil || b.botAgent == "" {
+		return
+	}
+	if c := b.account.Client(); c != nil {
+		c.SetBotAgent(b.botAgent)
+	}
 }
 
 // LoadAccount loads an account from the store by ID.
@@ -128,6 +165,7 @@ func (b *WechatBot) LoadAccount(accountID string) error {
 	}
 
 	b.account = NewAccount(wcAccount)
+	b.applyBotAgent()
 	return nil
 }
 
@@ -164,9 +202,14 @@ func (b *WechatBot) IsConnected() bool {
 	return b.account != nil && b.account.IsConfigured()
 }
 
-// Connect activates the bot with a loaded account.
-// This is a no-op for WeChat as it uses HTTP API, not persistent connections.
-// The account must be loaded first via LoadAccount() or NewWechatBotWithAccount().
+// Connect activates the bot with a loaded account. WeChat uses an HTTP
+// API rather than a persistent connection, so Connect only validates the
+// account state and (when WithLifecycleNotify is enabled) sends a
+// best-effort NotifyStart so the upstream server knows the channel client
+// just came online.
+//
+// The account must be loaded first via LoadAccount() or by passing
+// WithAccount to NewWechatBot.
 func (b *WechatBot) Connect(ctx context.Context) error {
 	if b.account == nil {
 		return &types.Error{
@@ -180,12 +223,41 @@ func (b *WechatBot) Connect(ctx context.Context) error {
 			Message: "account not configured",
 		}
 	}
+
+	if b.lifecycleNotify {
+		if c := b.account.Client(); c != nil {
+			resp, err := c.NotifyStart(ctx)
+			switch {
+			case err != nil:
+				log.Printf("[weixin] notifyStart failed during startup (ignored): %v", err)
+			case resp != nil && resp.Ret != 0:
+				log.Printf("[weixin] notifyStart: ret=%d errmsg=%q", resp.Ret, resp.ErrMsg)
+			}
+		}
+	}
+
 	return nil
 }
 
-// Disconnect deactivates the bot.
-// This is a no-op for WeChat as it uses HTTP API, not persistent connections.
+// Disconnect deactivates the bot. When WithLifecycleNotify is enabled this
+// sends a best-effort NotifyStop on a detached context so the call can
+// finish even when the parent context is already cancelled (typical
+// Ctrl+C / shutdown path).
 func (b *WechatBot) Disconnect() error {
+	if b.lifecycleNotify && b.account != nil {
+		if c := b.account.Client(); c != nil {
+			ctx, cancel := context.WithTimeout(context.Background(), api.DefaultConfigTimeout)
+			resp, err := c.NotifyStop(ctx)
+			cancel()
+			switch {
+			case err != nil:
+				log.Printf("[weixin] notifyStop failed during shutdown (ignored): %v", err)
+			case resp != nil && resp.Ret != 0:
+				log.Printf("[weixin] notifyStop: ret=%d errmsg=%q", resp.Ret, resp.ErrMsg)
+			}
+		}
+	}
+
 	b.account = nil
 	return nil
 }
