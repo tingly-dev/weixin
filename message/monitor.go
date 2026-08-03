@@ -221,11 +221,18 @@ func (m *Monitor) handleError(err error) {
 
 	log.Printf("[weixin] monitor error (%d/%d): %v", m.consecutiveFail, MaxConsecutiveFailures, err)
 
-	// Check for session expiration error
-	if isSessionExpiredError(err) {
+	// Check for stale token error
+	if isStaleTokenError(err) {
 		PauseSession(m.accountID)
 		m.consecutiveFail = 0
 		return
+	}
+
+	// Structured network-error classification for observability
+	// (mirrors openclaw-weixin classifyFetchError, v2.4.5).
+	if fe := api.ClassifyFetchError(err); fe != nil {
+		log.Printf("[weixin] monitor network error: type=%s description=%s code=%s",
+			fe.Type, fe.Description, fe.Code)
 	}
 
 	// Backoff after max consecutive failures
@@ -235,9 +242,9 @@ func (m *Monitor) handleError(err error) {
 	}
 }
 
-// isSessionExpiredError checks if the error indicates a session expiration.
-func isSessionExpiredError(err error) bool {
-	return err != nil && err.Error() == fmt.Sprintf("ret=%d", SessionExpiredErrCode)
+// isStaleTokenError checks if the error indicates the bot token is stale/expired.
+func isStaleTokenError(err error) bool {
+	return err != nil && err.Error() == fmt.Sprintf("ret=%d", StaleTokenErrCode)
 }
 
 // GetSyncBuf returns the current sync buffer.

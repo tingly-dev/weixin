@@ -27,7 +27,7 @@ func (b *WechatBot) GetUpdates(ctx context.Context, syncBuf string) (*types.GetU
 	// Check session guard
 	if err := message.AssertSessionActive(b.account.ID()); err != nil {
 		return &types.GetUpdatesResult{
-			ErrCode: message.SessionExpiredErrCode,
+			ErrCode: message.StaleTokenErrCode,
 			ErrMsg:  err.Error(),
 		}, nil
 	}
@@ -43,8 +43,8 @@ func (b *WechatBot) GetUpdates(ctx context.Context, syncBuf string) (*types.GetU
 		return nil, fmt.Errorf("get updates: %w", err)
 	}
 
-	// Check for session expiration
-	if resp.ErrCode == message.SessionExpiredErrCode {
+	// Check for stale bot token
+	if resp.ErrCode == message.StaleTokenErrCode {
 		message.PauseSession(b.account.ID())
 		return &types.GetUpdatesResult{
 			ErrCode: int(resp.ErrCode),

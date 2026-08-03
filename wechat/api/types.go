@@ -9,13 +9,21 @@ const (
 )
 
 // Message item type constants.
+//
+// The numeric IDs are defined by the upstream ilink protocol. TEXT..VIDEO are
+// contiguous (1..5), but TOOL_CALL_START/RESULT jump to 11/12; they are
+// therefore given explicit values rather than relying on iota, so the wire
+// format is self-documenting and stable across reorders.
 const (
-	MessageItemTypeNone = iota
-	MessageItemTypeText
-	MessageItemTypeImage
-	MessageItemTypeVoice
-	MessageItemTypeFile
-	MessageItemTypeVideo
+	MessageItemTypeNone  = 0
+	MessageItemTypeText  = 1
+	MessageItemTypeImage = 2
+	MessageItemTypeVoice = 3
+	MessageItemTypeFile  = 4
+	MessageItemTypeVideo = 5
+
+	MessageItemTypeToolCallStart  = 11 // TOOL_CALL_START (since openclaw-weixin v2.4.4)
+	MessageItemTypeToolCallResult = 12 // TOOL_CALL_RESULT (since openclaw-weixin v2.4.4)
 )
 
 // Message state constants.
@@ -47,6 +55,25 @@ type MessageItem struct {
 	VoiceItem *VoiceItem `json:"voice_item,omitempty"`
 	FileItem  *FileItem  `json:"file_item,omitempty"`
 	VideoItem *VideoItem `json:"video_item,omitempty"`
+
+	// Tool call progress items (since openclaw-weixin v2.4.4).
+	// Sent as standalone MessageItems with Type=11/12 to surface AI tool
+	// usage to the user in real time.
+	ToolCallStartItem  *ToolCallStartItem  `json:"tool_call_start_item,omitempty"`
+	ToolCallResultItem *ToolCallResultItem `json:"tool_call_result_item,omitempty"`
+}
+
+// ToolCallStartItem is the payload for a TOOL_CALL_START message item (type 11).
+type ToolCallStartItem struct {
+	ToolName   string `json:"tool_name,omitempty"`
+	ToolCallID string `json:"tool_call_id,omitempty"`
+}
+
+// ToolCallResultItem is the payload for a TOOL_CALL_RESULT message item (type 12).
+type ToolCallResultItem struct {
+	ToolName   string `json:"tool_name,omitempty"`
+	ToolCallID string `json:"tool_call_id,omitempty"`
+	Status     string `json:"status,omitempty"` // "completed" | "failed" | "blocked" | "unknown"
 }
 
 // TextItem represents text content.
@@ -123,15 +150,32 @@ type SendMessageRequest struct {
 	BaseInfo *BaseInfo             `json:"base_info,omitempty"`
 }
 
+// SendMessageResponse represents the response to a sendMessage call.
+// Since openclaw-weixin v2.4.5, sendMessage parses ret/errmsg and fails on
+// non-zero ret instead of fire-and-forget.
+type SendMessageResponse struct {
+	Ret    int32  `json:"ret,omitempty"`
+	ErrMsg string `json:"errmsg,omitempty"`
+}
+
 // WeixinMessageWrapper wraps WeixinMessage for sending.
 type WeixinMessageWrapper struct {
-	FromUserID   string        `json:"from_user_id"`  // Bot ID (sender)
-	ToUserID     string        `json:"to_user_id"`    // User ID (recipient)
-	ClientID     string        `json:"client_id"`     // Unique client ID
-	MessageType  int           `json:"message_type"`  // 2 = BOT
-	MessageState int           `json:"message_state"` // 2 = FINISH
+	FromUserID   string        `json:"from_user_id"`            // Bot ID (sender)
+	ToUserID     string        `json:"to_user_id"`              // User ID (recipient)
+	ClientID     string        `json:"client_id"`               // Unique client ID
+	MessageType  int           `json:"message_type"`            // 2 = BOT
+	MessageState int           `json:"message_state"`           // 2 = FINISH
 	ContextToken string        `json:"context_token,omitempty"`
 	ItemList     []MessageItem `json:"item_list"`
+	RunID        string        `json:"run_id,omitempty"` // Correlates all msgs in one reply turn (since v2.4.4)
+}
+
+// SendOptions carries per-send metadata shared across all outbound message paths.
+// A caller pins one RunID across text + media + tool-progress messages so the
+// server can correlate them as a single reply turn.
+type SendOptions struct {
+	ContextToken string
+	RunID        string
 }
 
 // GetUploadURLRequest represents the getUploadUrl request.
@@ -236,9 +280,24 @@ type BaseInfo struct {
 
 // QRStatusResponse represents the get_qrcode_status response.
 type QRStatusResponse struct {
-	Status      string `json:"status,omitempty"` // wait, scaned, confirmed, expired
+	Status      string `json:"status,omitempty"` // wait, scaned, confirmed, expired, binded_redirect
 	BotToken    string `json:"bot_token,omitempty"`
 	IlinkBotID  string `json:"ilink_bot_id,omitempty"`
 	BaseURL     string `json:"baseurl,omitempty"`
 	IlinkUserID string `json:"ilink_user_id,omitempty"`
 }
+
+// QR status values returned by get_qrcode_status.
+const (
+	// QRStatusWait: still waiting for a scan.
+	QRStatusWait = "wait"
+	// QRStatusScanned: user scanned but hasn't confirmed yet.
+	QRStatusScanned = "scaned"
+	// QRStatusConfirmed: login confirmed, credentials returned.
+	QRStatusConfirmed = "confirmed"
+	// QRStatusExpired: QR code expired, needs refresh.
+	QRStatusExpired = "expired"
+	// QRStatusBindedRedirect: the scanned bot is already bound to this host;
+	// treated as a successful no-op (since openclaw-weixin v2.4.3).
+	QRStatusBindedRedirect = "binded_redirect"
+)

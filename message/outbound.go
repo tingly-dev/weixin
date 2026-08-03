@@ -21,13 +21,14 @@ func ConvertToOutboundMessage(msg *types.OutboundMessage) (toUserID, contextToke
 }
 
 // BuildTextItem creates a text MessageItem.
-// Converts markdown to plain text before creating the item.
+// Applies WeChat markdown filtering (keeps most syntax, strips only what
+// WeChat renders poorly) before creating the item.
 func BuildTextItem(text string) api.MessageItem {
-	plainText := ToPlainText(text)
+	filtered := Apply(text)
 	return api.MessageItem{
 		Type: api.MessageItemTypeText,
 		TextItem: &api.TextItem{
-			Text: plainText,
+			Text: filtered,
 		},
 	}
 }
@@ -37,13 +38,13 @@ func BuildTextItem(text string) api.MessageItem {
 func ConvertOutboundMessageToList(msg *types.OutboundMessage) []api.MessageItem {
 	var items []api.MessageItem
 
-	// Add text item if present (convert markdown to plain text)
+	// Add text item if present (apply WeChat markdown filtering)
 	if msg.Text != "" {
-		plainText := ToPlainText(msg.Text)
+		filtered := Apply(msg.Text)
 		items = append(items, api.MessageItem{
 			Type: api.MessageItemTypeText,
 			TextItem: &api.TextItem{
-				Text: plainText,
+				Text: filtered,
 			},
 		})
 	}

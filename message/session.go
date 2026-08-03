@@ -8,11 +8,20 @@ import (
 )
 
 const (
-	// SessionPauseDuration is how long to pause after session expiration.
+	// SessionPauseDuration is how long to pause after the bot token goes stale.
 	SessionPauseDuration = 60 * time.Minute // 1 hour
 
-	// SessionExpiredErrCode is the error code returned when session has expired.
-	SessionExpiredErrCode = -14
+	// StaleTokenErrCode is the error code returned when the bot token is
+	// stale/expired (errcode -14). The client pauses for one hour before
+	// retrying, since the token must be refreshed upstream.
+	//
+	// (since openclaw-weixin v2.4.5 this was renamed from
+	// SessionExpiredErrCode to clarify the token-staleness semantics.)
+	StaleTokenErrCode = -14
+
+	// Deprecated: use StaleTokenErrCode. Kept as an alias so existing
+	// importers keep compiling; will be removed in a future release.
+	SessionExpiredErrCode = StaleTokenErrCode
 )
 
 var (
@@ -76,7 +85,7 @@ func AssertSessionActive(accountID string) error {
 		return &SessionPausedError{
 			AccountID: accountID,
 			Remaining: remaining,
-			ErrCode:   SessionExpiredErrCode,
+			ErrCode:   StaleTokenErrCode,
 		}
 	}
 	return nil

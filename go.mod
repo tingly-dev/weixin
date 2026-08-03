@@ -5,6 +5,7 @@ go 1.22
 require (
 	github.com/gorilla/websocket v1.5.3
 	github.com/mdp/qrterminal/v3 v3.2.1
+	github.com/yuin/goldmark v1.8.5
 )
 
 require (

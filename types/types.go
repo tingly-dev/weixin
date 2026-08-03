@@ -302,6 +302,13 @@ type QrCodeWaitResult struct {
 	BaseURL   string `json:"baseUrl"`   // Base URL for API requests
 	UserID    string `json:"userId"`    // User ID
 	Error     string `json:"error"`     // Error message if failed
+
+	// AlreadyConnected is true when the scanned bot is already bound to this
+	// host (server status "binded_redirect"). This is a successful no-op:
+	// no new credentials are saved and no error is returned. Callers should
+	// treat it the same as Success for lifecycle purposes.
+	// (since openclaw-weixin v2.4.3)
+	AlreadyConnected bool `json:"alreadyConnected,omitempty"`
 }
 
 // UploadURLRequest contains parameters for getting an upload URL.
