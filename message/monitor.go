@@ -228,6 +228,13 @@ func (m *Monitor) handleError(err error) {
 		return
 	}
 
+	// Structured network-error classification for observability
+	// (mirrors openclaw-weixin classifyFetchError, v2.4.5).
+	if fe := api.ClassifyFetchError(err); fe != nil {
+		log.Printf("[weixin] monitor network error: type=%s description=%s code=%s",
+			fe.Type, fe.Description, fe.Code)
+	}
+
 	// Backoff after max consecutive failures
 	if m.consecutiveFail >= MaxConsecutiveFailures {
 		log.Printf("[weixin] max consecutive failures reached, backing off for %v", BackoffDelay)

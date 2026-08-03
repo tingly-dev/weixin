@@ -9,13 +9,21 @@ const (
 )
 
 // Message item type constants.
+//
+// The numeric IDs are defined by the upstream ilink protocol. TEXT..VIDEO are
+// contiguous (1..5), but TOOL_CALL_START/RESULT jump to 11/12; they are
+// therefore given explicit values rather than relying on iota, so the wire
+// format is self-documenting and stable across reorders.
 const (
-	MessageItemTypeNone = iota
-	MessageItemTypeText
-	MessageItemTypeImage
-	MessageItemTypeVoice
-	MessageItemTypeFile
-	MessageItemTypeVideo
+	MessageItemTypeNone  = 0
+	MessageItemTypeText  = 1
+	MessageItemTypeImage = 2
+	MessageItemTypeVoice = 3
+	MessageItemTypeFile  = 4
+	MessageItemTypeVideo = 5
+
+	MessageItemTypeToolCallStart  = 11 // TOOL_CALL_START (since openclaw-weixin v2.4.4)
+	MessageItemTypeToolCallResult = 12 // TOOL_CALL_RESULT (since openclaw-weixin v2.4.4)
 )
 
 // Message state constants.
@@ -47,6 +55,25 @@ type MessageItem struct {
 	VoiceItem *VoiceItem `json:"voice_item,omitempty"`
 	FileItem  *FileItem  `json:"file_item,omitempty"`
 	VideoItem *VideoItem `json:"video_item,omitempty"`
+
+	// Tool call progress items (since openclaw-weixin v2.4.4).
+	// Sent as standalone MessageItems with Type=11/12 to surface AI tool
+	// usage to the user in real time.
+	ToolCallStartItem  *ToolCallStartItem  `json:"tool_call_start_item,omitempty"`
+	ToolCallResultItem *ToolCallResultItem `json:"tool_call_result_item,omitempty"`
+}
+
+// ToolCallStartItem is the payload for a TOOL_CALL_START message item (type 11).
+type ToolCallStartItem struct {
+	ToolName   string `json:"tool_name,omitempty"`
+	ToolCallID string `json:"tool_call_id,omitempty"`
+}
+
+// ToolCallResultItem is the payload for a TOOL_CALL_RESULT message item (type 12).
+type ToolCallResultItem struct {
+	ToolName   string `json:"tool_name,omitempty"`
+	ToolCallID string `json:"tool_call_id,omitempty"`
+	Status     string `json:"status,omitempty"` // "completed" | "failed" | "blocked" | "unknown"
 }
 
 // TextItem represents text content.
@@ -133,13 +160,22 @@ type SendMessageResponse struct {
 
 // WeixinMessageWrapper wraps WeixinMessage for sending.
 type WeixinMessageWrapper struct {
-	FromUserID   string        `json:"from_user_id"`  // Bot ID (sender)
-	ToUserID     string        `json:"to_user_id"`    // User ID (recipient)
-	ClientID     string        `json:"client_id"`     // Unique client ID
-	MessageType  int           `json:"message_type"`  // 2 = BOT
-	MessageState int           `json:"message_state"` // 2 = FINISH
+	FromUserID   string        `json:"from_user_id"`            // Bot ID (sender)
+	ToUserID     string        `json:"to_user_id"`              // User ID (recipient)
+	ClientID     string        `json:"client_id"`               // Unique client ID
+	MessageType  int           `json:"message_type"`            // 2 = BOT
+	MessageState int           `json:"message_state"`           // 2 = FINISH
 	ContextToken string        `json:"context_token,omitempty"`
 	ItemList     []MessageItem `json:"item_list"`
+	RunID        string        `json:"run_id,omitempty"` // Correlates all msgs in one reply turn (since v2.4.4)
+}
+
+// SendOptions carries per-send metadata shared across all outbound message paths.
+// A caller pins one RunID across text + media + tool-progress messages so the
+// server can correlate them as a single reply turn.
+type SendOptions struct {
+	ContextToken string
+	RunID        string
 }
 
 // GetUploadURLRequest represents the getUploadUrl request.

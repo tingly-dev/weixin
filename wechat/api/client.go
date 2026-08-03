@@ -129,6 +129,13 @@ func (c *Client) doRequestWithClient(ctx context.Context, endpoint string, clien
 
 	resp, err := client.Do(req)
 	if err != nil {
+		// Structured network-error classification for observability
+		// (mirrors openclaw-weixin classifyFetchError, v2.4.5). Host-only
+		// logging avoids leaking tokens/sensitive query params.
+		if fe := ClassifyFetchError(err); fe != nil {
+			fmt.Printf("[weixin] %s network error: type=%s description=%s code=%s\n",
+				endpoint, fe.Type, fe.Description, fe.Code)
+		}
 		return fmt.Errorf("send request: %w", err)
 	}
 	defer resp.Body.Close()

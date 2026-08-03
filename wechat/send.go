@@ -21,7 +21,7 @@ func (b *WechatBot) Send(ctx context.Context, msg *types.OutboundMessage) (*type
 	items := message.ConvertOutboundMessageToList(msg)
 
 	// Send directly via API client
-	if err := b.account.Client().SendMessage(ctx, msg.To, msg.ContextToken, items); err != nil {
+	if err := b.account.Client().SendMessage(ctx, msg.To, api.SendOptions{ContextToken: msg.ContextToken}, items); err != nil {
 		return &types.OutboundResult{OK: false, Error: err.Error()}, err
 	}
 
@@ -82,7 +82,7 @@ func (b *WechatBot) SendMedia(ctx context.Context, msg *types.OutboundMessage) (
 	}
 
 	// Send directly via API client
-	if err := client.SendMessage(ctx, msg.To, msg.ContextToken, []api.MessageItem{item}); err != nil {
+	if err := client.SendMessage(ctx, msg.To, api.SendOptions{ContextToken: msg.ContextToken}, []api.MessageItem{item}); err != nil {
 		return &types.OutboundResult{OK: false, Error: err.Error()}, err
 	}
 
@@ -99,7 +99,7 @@ func (b *WechatBot) SendStream(ctx context.Context, msg *types.OutboundMessage) 
 	items := message.ConvertOutboundMessageToList(msg)
 
 	// Send directly via API client
-	if err := b.account.Client().SendMessage(ctx, msg.To, msg.ContextToken, items); err != nil {
+	if err := b.account.Client().SendMessage(ctx, msg.To, api.SendOptions{ContextToken: msg.ContextToken}, items); err != nil {
 		return &types.OutboundResult{OK: false, Error: err.Error()}, err
 	}
 
