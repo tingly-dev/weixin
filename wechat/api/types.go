@@ -123,6 +123,14 @@ type SendMessageRequest struct {
 	BaseInfo *BaseInfo             `json:"base_info,omitempty"`
 }
 
+// SendMessageResponse represents the response to a sendMessage call.
+// Since openclaw-weixin v2.4.5, sendMessage parses ret/errmsg and fails on
+// non-zero ret instead of fire-and-forget.
+type SendMessageResponse struct {
+	Ret    int32  `json:"ret,omitempty"`
+	ErrMsg string `json:"errmsg,omitempty"`
+}
+
 // WeixinMessageWrapper wraps WeixinMessage for sending.
 type WeixinMessageWrapper struct {
 	FromUserID   string        `json:"from_user_id"`  // Bot ID (sender)
