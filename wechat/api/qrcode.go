@@ -105,7 +105,7 @@ func (c *Client) GetQRStatus(ctx context.Context, qrcode string) (*QRStatusRespo
 	if err != nil {
 		// Timeout is normal, return "wait" status
 		if ctx.Err() == context.DeadlineExceeded {
-			return &QRStatusResponse{Status: "wait"}, nil
+			return &QRStatusResponse{Status: QRStatusWait}, nil
 		}
 		return nil, fmt.Errorf("send request: %w", err)
 	}

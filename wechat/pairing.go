@@ -107,17 +107,17 @@ func (b *WechatBot) LoginWithQrWait(ctx context.Context, accountID, qrID string)
 		}
 
 		switch statusResp.Status {
-		case "wait":
+		case api.QRStatusWait:
 			// Still waiting, continue polling
 			time.Sleep(2 * time.Second)
 			continue
 
-		case "scaned":
+		case api.QRStatusScanned:
 			// User scanned but hasn't confirmed yet
 			time.Sleep(2 * time.Second)
 			continue
 
-		case "expired":
+		case api.QRStatusExpired:
 			// QR code expired, refresh it
 			refreshCount++
 			if refreshCount > maxQRRefreshCount {
@@ -154,7 +154,19 @@ func (b *WechatBot) LoginWithQrWait(ctx context.Context, accountID, qrID string)
 				Error:   "QR code expired, please scan again",
 			}, nil
 
-		case "confirmed":
+		case api.QRStatusBindedRedirect:
+			// The scanned bot is already bound to this OpenClaw instance.
+			// Treat as success: no credentials to save, no error to surface.
+			loginMutex.Lock()
+			delete(activeLogins, accountID)
+			loginMutex.Unlock()
+
+			return &types.QrCodeWaitResult{
+				Success:          true,
+				AlreadyConnected: true,
+			}, nil
+
+		case api.QRStatusConfirmed:
 			// Login successful!
 			loginMutex.Lock()
 			delete(activeLogins, accountID)

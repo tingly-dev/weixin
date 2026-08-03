@@ -236,9 +236,24 @@ type BaseInfo struct {
 
 // QRStatusResponse represents the get_qrcode_status response.
 type QRStatusResponse struct {
-	Status      string `json:"status,omitempty"` // wait, scaned, confirmed, expired
+	Status      string `json:"status,omitempty"` // wait, scaned, confirmed, expired, binded_redirect
 	BotToken    string `json:"bot_token,omitempty"`
 	IlinkBotID  string `json:"ilink_bot_id,omitempty"`
 	BaseURL     string `json:"baseurl,omitempty"`
 	IlinkUserID string `json:"ilink_user_id,omitempty"`
 }
+
+// QR status values returned by get_qrcode_status.
+const (
+	// QRStatusWait: still waiting for a scan.
+	QRStatusWait = "wait"
+	// QRStatusScanned: user scanned but hasn't confirmed yet.
+	QRStatusScanned = "scaned"
+	// QRStatusConfirmed: login confirmed, credentials returned.
+	QRStatusConfirmed = "confirmed"
+	// QRStatusExpired: QR code expired, needs refresh.
+	QRStatusExpired = "expired"
+	// QRStatusBindedRedirect: the scanned bot is already bound to this host;
+	// treated as a successful no-op (since openclaw-weixin v2.4.3).
+	QRStatusBindedRedirect = "binded_redirect"
+)
