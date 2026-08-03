@@ -221,8 +221,8 @@ func (m *Monitor) handleError(err error) {
 
 	log.Printf("[weixin] monitor error (%d/%d): %v", m.consecutiveFail, MaxConsecutiveFailures, err)
 
-	// Check for session expiration error
-	if isSessionExpiredError(err) {
+	// Check for stale token error
+	if isStaleTokenError(err) {
 		PauseSession(m.accountID)
 		m.consecutiveFail = 0
 		return
@@ -235,9 +235,9 @@ func (m *Monitor) handleError(err error) {
 	}
 }
 
-// isSessionExpiredError checks if the error indicates a session expiration.
-func isSessionExpiredError(err error) bool {
-	return err != nil && err.Error() == fmt.Sprintf("ret=%d", SessionExpiredErrCode)
+// isStaleTokenError checks if the error indicates the bot token is stale/expired.
+func isStaleTokenError(err error) bool {
+	return err != nil && err.Error() == fmt.Sprintf("ret=%d", StaleTokenErrCode)
 }
 
 // GetSyncBuf returns the current sync buffer.
