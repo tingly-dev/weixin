@@ -89,6 +89,68 @@ func TestConvertInboundMessage_IDOnlyQuote_LeavesBodyUnresolved(t *testing.T) {
 	}
 }
 
+// TestConvertInboundMessage_EmptyRefMsg_NoFakeID mirrors the official
+// reference implementation's "returns text when ref_msg has no extractable
+// content" test case (src/messaging/inbound.test.ts in Tencent/openclaw-weixin):
+// an empty ref_msg still marks the message as a quote, but must not
+// synthesize a fake "0" ReplyToID when neither svr_id nor a nested
+// message_item.msg_id is present.
+func TestConvertInboundMessage_EmptyRefMsg_NoFakeID(t *testing.T) {
+	msg := &api.WeixinMessage{
+		MessageID:  5,
+		FromUserID: "user-1",
+		ToUserID:   "bot-1",
+		ItemList: []api.MessageItem{
+			{
+				Type:     api.MessageItemTypeText,
+				TextItem: &api.TextItem{Text: "reply"},
+				RefMsg:   &api.RefMessage{},
+			},
+		},
+	}
+
+	got := ConvertInboundMessage(msg, "acct-1", "")
+	if got.Text != "reply" {
+		t.Fatalf("Text = %q, want unaffected by the empty ref_msg", got.Text)
+	}
+	if got.ReplyToID != "" {
+		t.Fatalf("ReplyToID = %q, want empty (no real id in ref_msg)", got.ReplyToID)
+	}
+	if got.ReplyToBody != "" {
+		t.Fatalf("ReplyToBody = %q, want empty", got.ReplyToBody)
+	}
+	if got.Metadata["reply_to_is_quote"] != true {
+		t.Fatalf("reply_to_is_quote = %v, want true", got.Metadata["reply_to_is_quote"])
+	}
+}
+
+// TestConvertInboundMessage_QuotedMediaWithoutNestedStruct matches the
+// official reference's isMediaItem/getMediaLabel behavior: the media label is
+// keyed off the quoted item's Type, not whether its nested *ImageItem/etc.
+// struct happens to be populated.
+func TestConvertInboundMessage_QuotedMediaWithoutNestedStruct(t *testing.T) {
+	msg := &api.WeixinMessage{
+		MessageID:  6,
+		FromUserID: "user-1",
+		ToUserID:   "bot-1",
+		ItemList: []api.MessageItem{
+			{
+				Type:     api.MessageItemTypeText,
+				TextItem: &api.TextItem{Text: "reply"},
+				RefMsg: &api.RefMessage{
+					SvrID:       11,
+					MessageItem: &api.MessageItem{Type: api.MessageItemTypeImage},
+				},
+			},
+		},
+	}
+
+	got := ConvertInboundMessage(msg, "acct-1", "")
+	if got.ReplyToBody != "[图片]" {
+		t.Fatalf("ReplyToBody = %q, want [图片]", got.ReplyToBody)
+	}
+}
+
 func TestConvertInboundMessage_QuoteFallsBackToNestedMsgID(t *testing.T) {
 	msg := &api.WeixinMessage{
 		MessageID:  4,

@@ -142,6 +142,25 @@ func findReferenceItem(msg *api.WeixinMessage) *api.MessageItem {
 	return nil
 }
 
+// mediaLabel returns the bracketed display label WeChat uses for a
+// content-less media item, matching the upstream reference implementation's
+// getMediaLabel (keyed off Type, not whether the nested item struct happens
+// to be populated).
+func mediaLabel(itemType int) string {
+	switch itemType {
+	case api.MessageItemTypeImage:
+		return "[图片]"
+	case api.MessageItemTypeVideo:
+		return "[视频]"
+	case api.MessageItemTypeFile:
+		return "[文件]"
+	case api.MessageItemTypeVoice:
+		return "[语音]"
+	default:
+		return ""
+	}
+}
+
 // inlineQuoteBody builds a display string for a quoted message's inline
 // content, when the server provides it. Only covers text and a short label
 // for media items; this SDK doesn't need the full CDN-stitched Attachment
@@ -152,17 +171,12 @@ func inlineQuoteBody(ref *api.RefMessage) string {
 		parts = append(parts, title)
 	}
 	if item := ref.MessageItem; item != nil {
-		switch {
-		case item.TextItem != nil && item.TextItem.Text != "":
+		if item.TextItem != nil && item.TextItem.Text != "" {
 			parts = append(parts, item.TextItem.Text)
-		case item.ImageItem != nil:
-			parts = append(parts, "[图片]")
-		case item.VoiceItem != nil:
-			parts = append(parts, "[语音]")
-		case item.FileItem != nil:
-			parts = append(parts, "[文件]")
-		case item.VideoItem != nil:
-			parts = append(parts, "[视频]")
+		} else if item.VoiceItem != nil && item.VoiceItem.Text != "" {
+			parts = append(parts, item.VoiceItem.Text)
+		} else if label := mediaLabel(item.Type); label != "" {
+			parts = append(parts, label)
 		}
 	}
 	return strings.Join(parts, " | ")
@@ -185,8 +199,12 @@ func applyQuoteContext(result *types.Message, msg *api.WeixinMessage) {
 	}
 	ref := item.RefMsg
 
-	result.ReplyToID = fmt.Sprintf("%d", ref.SvrID)
-	if ref.SvrID == 0 && ref.MessageItem != nil {
+	// Only set ReplyToID when a real id was found; a ref_msg with neither
+	// svr_id nor a nested message_item.msg_id (e.g. an empty ref_msg, or one
+	// carrying only a title) must not surface a fake "0" id.
+	if ref.SvrID != 0 {
+		result.ReplyToID = fmt.Sprintf("%d", ref.SvrID)
+	} else if ref.MessageItem != nil && ref.MessageItem.MsgID != 0 {
 		result.ReplyToID = fmt.Sprintf("%d", ref.MessageItem.MsgID)
 	}
 	result.ReplyToBody = inlineQuoteBody(ref)
