@@ -34,9 +34,14 @@ const (
 )
 
 // WeixinMessage represents a message from WeChat API.
+//
+// MessageID is uint64 on the wire. Unlike the upstream JS plugin (which must
+// string-quote it before JSON.parse to avoid float64 precision loss above
+// 2^53), Go's encoding/json unmarshals directly into uint64 without any
+// precision loss, so no string workaround is needed here.
 type WeixinMessage struct {
 	Seq          int64         `json:"seq,omitempty"`
-	MessageID    int64         `json:"message_id,omitempty"`
+	MessageID    uint64        `json:"message_id,omitempty"`
 	FromUserID   string        `json:"from_user_id,omitempty"`
 	ToUserID     string        `json:"to_user_id,omitempty"`
 	CreateTimeMs int64         `json:"create_time_ms,omitempty"`
@@ -50,17 +55,55 @@ type WeixinMessage struct {
 // MessageItem represents content within a message.
 type MessageItem struct {
 	Type      int        `json:"type,omitempty"`
+	MsgID     uint64     `json:"msg_id,omitempty"`
 	TextItem  *TextItem  `json:"text_item,omitempty"`
 	ImageItem *ImageItem `json:"image_item,omitempty"`
 	VoiceItem *VoiceItem `json:"voice_item,omitempty"`
 	FileItem  *FileItem  `json:"file_item,omitempty"`
 	VideoItem *VideoItem `json:"video_item,omitempty"`
 
+	// RefMsg is set when this item quotes/replies to an earlier message
+	// (since openclaw-weixin v2.4.9-beta.0). Newer WeChat clients send
+	// ID-only quotes (RefMsg.SvrID + optional RefMsg.PartialText) instead of
+	// inline quoted content; see RefMessage for details.
+	RefMsg *RefMessage `json:"ref_msg,omitempty"`
+
 	// Tool call progress items (since openclaw-weixin v2.4.4).
 	// Sent as standalone MessageItems with Type=11/12 to surface AI tool
 	// usage to the user in real time.
 	ToolCallStartItem  *ToolCallStartItem  `json:"tool_call_start_item,omitempty"`
 	ToolCallResultItem *ToolCallResultItem `json:"tool_call_result_item,omitempty"`
+}
+
+// RefMessage describes a quoted/replied-to message attached to a MessageItem
+// (since openclaw-weixin v2.4.9-beta.0).
+//
+// Older WeChat clients populate MessageItem/Title with the quoted content
+// inline. Newer clients instead send only SvrID (the quoted message's server
+// ID) and, optionally, PartialText describing a highlighted sub-range of it.
+// This SDK does not maintain a local message-history cache, so ID-only
+// quotes cannot be resolved to a body here; see message.ConvertInboundMessage
+// and README.md for how this is surfaced to callers.
+type RefMessage struct {
+	MessageItem *MessageItem `json:"message_item,omitempty"`
+	Title       string       `json:"title,omitempty"` // 摘要
+	// SvrID is the quoted message's server ID, used when newer clients omit
+	// the quoted content. uint64 on the wire (see WeixinMessage.MessageID).
+	SvrID uint64 `json:"svr_id,omitempty"`
+	// PartialText describes a selected substring of the quoted message, if any.
+	PartialText *PartialText `json:"partial_text,omitempty"`
+}
+
+// PartialText describes a highlighted sub-range of a quoted message.
+// Resolving it against the quoted message's body requires the quoted body,
+// which this SDK does not cache; the field is preserved on the wire for
+// callers that maintain their own message history.
+type PartialText struct {
+	Start      string `json:"start,omitempty"`
+	End        string `json:"end,omitempty"`
+	StartIndex int    `json:"startindex,omitempty"`
+	EndIndex   int    `json:"endindex,omitempty"`
+	QuoteMD5   string `json:"quotemd5,omitempty"`
 }
 
 // ToolCallStartItem is the payload for a TOOL_CALL_START message item (type 11).
@@ -156,6 +199,11 @@ type SendMessageRequest struct {
 type SendMessageResponse struct {
 	Ret    int32  `json:"ret,omitempty"`
 	ErrMsg string `json:"errmsg,omitempty"`
+	// MessageID is the server-assigned ID for the sent message (since
+	// openclaw-weixin v2.4.9-beta.0). uint64 on the wire; see
+	// WeixinMessage.MessageID for why no lossless-string workaround is needed
+	// in Go.
+	MessageID uint64 `json:"message_id,omitempty"`
 }
 
 // WeixinMessageWrapper wraps WeixinMessage for sending.

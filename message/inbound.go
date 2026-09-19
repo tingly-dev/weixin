@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/tingly-dev/weixin/types"
@@ -104,7 +105,7 @@ func ConvertInboundMessage(msg *api.WeixinMessage, accountID, cdnBaseURL string)
 		timestamp = time.Now()
 	}
 
-	return &types.Message{
+	result := &types.Message{
 		MessageID:    fmt.Sprintf("%d", msg.MessageID),
 		AccountID:    accountID,
 		ChatType:     types.ChatTypeDirect, // WeChat only supports direct messages
@@ -124,4 +125,74 @@ func ConvertInboundMessage(msg *api.WeixinMessage, accountID, cdnBaseURL string)
 			"to_user_id":   msg.ToUserID,
 		},
 	}
+
+	applyQuoteContext(result, msg)
+
+	return result
+}
+
+// findReferenceItem returns the first item carrying a quote/reply (since
+// openclaw-weixin v2.4.9-beta.0), if any.
+func findReferenceItem(msg *api.WeixinMessage) *api.MessageItem {
+	for i := range msg.ItemList {
+		if msg.ItemList[i].RefMsg != nil {
+			return &msg.ItemList[i]
+		}
+	}
+	return nil
+}
+
+// inlineQuoteBody builds a display string for a quoted message's inline
+// content, when the server provides it. Only covers text and a short label
+// for media items; this SDK doesn't need the full CDN-stitched Attachment
+// conversion just to describe what was quoted.
+func inlineQuoteBody(ref *api.RefMessage) string {
+	var parts []string
+	if title := ref.Title; title != "" {
+		parts = append(parts, title)
+	}
+	if item := ref.MessageItem; item != nil {
+		switch {
+		case item.TextItem != nil && item.TextItem.Text != "":
+			parts = append(parts, item.TextItem.Text)
+		case item.ImageItem != nil:
+			parts = append(parts, "[图片]")
+		case item.VoiceItem != nil:
+			parts = append(parts, "[语音]")
+		case item.FileItem != nil:
+			parts = append(parts, "[文件]")
+		case item.VideoItem != nil:
+			parts = append(parts, "[视频]")
+		}
+	}
+	return strings.Join(parts, " | ")
+}
+
+// applyQuoteContext populates reply-to fields on result when msg contains a
+// quote/reply (ref_msg).
+//
+// Older WeChat clients send the quoted content inline (ref.MessageItem /
+// ref.Title); newer clients may send only ref.SvrID, omitting the content.
+// This SDK does not maintain a local message-history cache, so an ID-only
+// quote leaves ReplyToBody empty; Metadata["reply_to_is_quote"] distinguishes
+// that case from "no reply at all". ref.PartialText (a highlighted sub-range
+// of the quoted message) is preserved on the wire in api.RefMessage but is
+// not resolved here for the same reason.
+func applyQuoteContext(result *types.Message, msg *api.WeixinMessage) {
+	item := findReferenceItem(msg)
+	if item == nil {
+		return
+	}
+	ref := item.RefMsg
+
+	result.ReplyToID = fmt.Sprintf("%d", ref.SvrID)
+	if ref.SvrID == 0 && ref.MessageItem != nil {
+		result.ReplyToID = fmt.Sprintf("%d", ref.MessageItem.MsgID)
+	}
+	result.ReplyToBody = inlineQuoteBody(ref)
+
+	if result.Metadata == nil {
+		result.Metadata = make(map[string]interface{})
+	}
+	result.Metadata["reply_to_is_quote"] = true
 }

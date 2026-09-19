@@ -156,6 +156,14 @@ The SDK provides six core adapters for bot operations:
 - **Video** - Video with thumbnail support
 - **Markdown** - Rich text formatting (WeCom)
 - **Template Cards** - Interactive cards with buttons (WeCom)
+- **Quotes/Replies** - Inbound WeChat messages that quote/reply to an earlier
+  message populate `Message.ReplyToID`. When the server sends the quoted
+  content inline (older clients), `Message.ReplyToBody` is also populated.
+  Newer WeChat clients may send ID-only quotes (`ReplyToID` set, `ReplyToBody`
+  empty, `Metadata["reply_to_is_quote"] == true`) since this SDK does not keep
+  a local message-history cache to resolve them against; see
+  [understand-tencent-weixin-openclaw-weixin's quote-store analysis](https://github.com/FFengIll/understand-tencent-weixin-openclaw-weixin)
+  if your application needs full resolution and wants to build that cache itself.
 
 ## Examples
 

@@ -72,9 +72,17 @@ type Message struct {
 	To string `json:"to"`
 
 	// Threading
-	ThreadID  string `json:"threadId,omitempty"`
+	ThreadID string `json:"threadId,omitempty"`
+	// ReplyToID is the ID of the message this one quotes/replies to, when
+	// the platform reports one (e.g. WeChat's ref_msg.svr_id).
 	ReplyToID string `json:"replyToId,omitempty"`
-	ParentID  string `json:"parentId,omitempty"`
+	// ReplyToBody is the quoted message's content, when the platform sends
+	// it inline. Newer WeChat clients may send ID-only quotes (ReplyToID set,
+	// no inline content); in that case this is empty and
+	// Metadata["reply_to_is_quote"] is true, since resolving the body would
+	// require a local message-history cache this SDK does not maintain.
+	ReplyToBody string `json:"replyToBody,omitempty"`
+	ParentID    string `json:"parentId,omitempty"`
 
 	// Session Context
 	// ContextToken is used by some platforms (e.g., WeChat) to maintain
