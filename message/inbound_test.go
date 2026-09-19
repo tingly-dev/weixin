@@ -8,7 +8,7 @@ import (
 
 func TestConvertInboundMessage_NoQuote_LeavesReplyFieldsEmpty(t *testing.T) {
 	msg := &api.WeixinMessage{
-		MessageID:  1,
+		MessageID:  "1",
 		FromUserID: "user-1",
 		ToUserID:   "bot-1",
 		ItemList: []api.MessageItem{
@@ -30,7 +30,7 @@ func TestConvertInboundMessage_NoQuote_LeavesReplyFieldsEmpty(t *testing.T) {
 
 func TestConvertInboundMessage_InlineQuote_ResolvesBody(t *testing.T) {
 	msg := &api.WeixinMessage{
-		MessageID:  2,
+		MessageID:  "2",
 		FromUserID: "user-1",
 		ToUserID:   "bot-1",
 		ItemList: []api.MessageItem{
@@ -38,7 +38,7 @@ func TestConvertInboundMessage_InlineQuote_ResolvesBody(t *testing.T) {
 				Type:     api.MessageItemTypeText,
 				TextItem: &api.TextItem{Text: "sure, sounds good"},
 				RefMsg: &api.RefMessage{
-					SvrID: 42,
+					SvrID: "42",
 					MessageItem: &api.MessageItem{
 						TextItem: &api.TextItem{Text: "want to grab lunch?"},
 					},
@@ -61,7 +61,7 @@ func TestConvertInboundMessage_InlineQuote_ResolvesBody(t *testing.T) {
 
 func TestConvertInboundMessage_IDOnlyQuote_LeavesBodyUnresolved(t *testing.T) {
 	msg := &api.WeixinMessage{
-		MessageID:  3,
+		MessageID:  "3",
 		FromUserID: "user-1",
 		ToUserID:   "bot-1",
 		ItemList: []api.MessageItem{
@@ -69,7 +69,7 @@ func TestConvertInboundMessage_IDOnlyQuote_LeavesBodyUnresolved(t *testing.T) {
 				Type:     api.MessageItemTypeText,
 				TextItem: &api.TextItem{Text: "yes!"},
 				RefMsg: &api.RefMessage{
-					SvrID: 99,
+					SvrID: "99",
 					// No inline MessageItem/Title: newer WeChat clients send
 					// ID-only quotes that this SDK doesn't resolve.
 				},
@@ -97,7 +97,7 @@ func TestConvertInboundMessage_IDOnlyQuote_LeavesBodyUnresolved(t *testing.T) {
 // message_item.msg_id is present.
 func TestConvertInboundMessage_EmptyRefMsg_NoFakeID(t *testing.T) {
 	msg := &api.WeixinMessage{
-		MessageID:  5,
+		MessageID:  "5",
 		FromUserID: "user-1",
 		ToUserID:   "bot-1",
 		ItemList: []api.MessageItem{
@@ -130,7 +130,7 @@ func TestConvertInboundMessage_EmptyRefMsg_NoFakeID(t *testing.T) {
 // struct happens to be populated.
 func TestConvertInboundMessage_QuotedMediaWithoutNestedStruct(t *testing.T) {
 	msg := &api.WeixinMessage{
-		MessageID:  6,
+		MessageID:  "6",
 		FromUserID: "user-1",
 		ToUserID:   "bot-1",
 		ItemList: []api.MessageItem{
@@ -138,7 +138,7 @@ func TestConvertInboundMessage_QuotedMediaWithoutNestedStruct(t *testing.T) {
 				Type:     api.MessageItemTypeText,
 				TextItem: &api.TextItem{Text: "reply"},
 				RefMsg: &api.RefMessage{
-					SvrID:       11,
+					SvrID:       "11",
 					MessageItem: &api.MessageItem{Type: api.MessageItemTypeImage},
 				},
 			},
@@ -153,7 +153,7 @@ func TestConvertInboundMessage_QuotedMediaWithoutNestedStruct(t *testing.T) {
 
 func TestConvertInboundMessage_QuoteFallsBackToNestedMsgID(t *testing.T) {
 	msg := &api.WeixinMessage{
-		MessageID:  4,
+		MessageID:  "4",
 		FromUserID: "user-1",
 		ToUserID:   "bot-1",
 		ItemList: []api.MessageItem{
@@ -164,7 +164,7 @@ func TestConvertInboundMessage_QuoteFallsBackToNestedMsgID(t *testing.T) {
 					// SvrID absent (older-style quote): fall back to the
 					// quoted item's own msg_id.
 					MessageItem: &api.MessageItem{
-						MsgID:    7,
+						MsgID:    "7",
 						TextItem: &api.TextItem{Text: "original message"},
 					},
 				},
