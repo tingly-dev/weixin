@@ -186,13 +186,21 @@ go run main.go
 
 ## Protocol Documentation
 
-The primary source of truth for the wire protocol is the official
+The primary source of truth for the WeChat wire protocol is the official
 `@tencent-weixin/openclaw-weixin` plugin's own GitHub source, not just its npm
 tarball — it ships a maintained protocol spec and a full test suite that a
 published tarball strips out:
 - [Tencent/openclaw-weixin](https://github.com/Tencent/openclaw-weixin) — official channel plugin source
   - [`docs/protocol.md`](https://github.com/Tencent/openclaw-weixin/blob/main/docs/protocol.md) / [`docs/protocol_zh_CN.md`](https://github.com/Tencent/openclaw-weixin/blob/main/docs/protocol_zh_CN.md) — protocol spec
   - `src/**/*.test.ts` — ground-truth behavior fixtures (e.g. `src/messaging/inbound.test.ts` for quote/reply edge cases)
+
+For WeCom, the equivalent official source is
+[WecomTeam/wecom-openclaw-plugin](https://github.com/WecomTeam/wecom-openclaw-plugin),
+which itself delegates the WebSocket wire protocol to the official
+`@wecom/aibot-node-sdk` npm package — that package's shipped `.d.ts` files
+(not the plugin's own source) are the canonical schema for message/template
+card/upload frame shapes, since the plugin's own type re-declarations can lag
+behind it.
 
 For architecture analysis and version-to-version diffs against this Go SDK, see:
 - [understand-tencent-weixin-openclaw-weixin](https://github.com/FFengIll/understand-tencent-weixin-openclaw-weixin)

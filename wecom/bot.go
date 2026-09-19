@@ -144,7 +144,7 @@ func (b *WecomBot) sendReply(ctx context.Context, msg *types.OutboundMessage) (*
 			"content": msg.Text,
 		},
 	}
-	if err := b.client.SendReply(ctx, msg.ContextToken, body); err != nil {
+	if _, err := b.client.SendReply(ctx, msg.ContextToken, body); err != nil {
 		return &types.OutboundResult{OK: false, Error: err.Error()}, err
 	}
 	return &types.OutboundResult{OK: true}, nil
@@ -158,7 +158,7 @@ func (b *WecomBot) sendProactive(ctx context.Context, msg *types.OutboundMessage
 			"content": msg.Text,
 		},
 	}
-	if err := b.client.SendProactive(ctx, body); err != nil {
+	if _, err := b.client.SendProactive(ctx, body); err != nil {
 		return &types.OutboundResult{OK: false, Error: err.Error()}, err
 	}
 	return &types.OutboundResult{OK: true}, nil
@@ -192,7 +192,7 @@ func (b *WecomBot) SendStream(ctx context.Context, msg *types.OutboundMessage) (
 		body["stream"].(map[string]interface{})["id"] = generateReqID("stream")
 	}
 
-	if err := b.client.SendReply(ctx, msg.ContextToken, body); err != nil {
+	if _, err := b.client.SendReply(ctx, msg.ContextToken, body); err != nil {
 		return &types.OutboundResult{OK: false, Error: err.Error()}, err
 	}
 	return &types.OutboundResult{OK: true, ChannelMessageID: msg.StreamID}, nil
@@ -219,7 +219,7 @@ func (b *WecomBot) SendMedia(ctx context.Context, msg *types.OutboundMessage) (*
 
 	if msg.ContextToken != "" {
 		body := buildMediaBody(mediaType, mediaID, msg)
-		if err := b.client.SendReply(ctx, msg.ContextToken, body); err != nil {
+		if _, err := b.client.SendReply(ctx, msg.ContextToken, body); err != nil {
 			return &types.OutboundResult{OK: false, Error: err.Error()}, err
 		}
 	} else {
@@ -228,7 +228,7 @@ func (b *WecomBot) SendMedia(ctx context.Context, msg *types.OutboundMessage) (*
 			"msgtype": mediaType,
 		}
 		addMediaToBody(body, mediaType, mediaID, msg)
-		if err := b.client.SendProactive(ctx, body); err != nil {
+		if _, err := b.client.SendProactive(ctx, body); err != nil {
 			return &types.OutboundResult{OK: false, Error: err.Error()}, err
 		}
 	}
@@ -262,13 +262,12 @@ func buildMediaBody(mediaType, mediaID string, msg *types.OutboundMessage) map[s
 func addMediaToBody(body map[string]interface{}, mediaType, mediaID string, msg *types.OutboundMessage) {
 	switch mediaType {
 	case MsgTypeVideo:
-		body[mediaType] = map[string]interface{}{
-			"media_id": mediaID,
-			"title":    msg.FileName,
+		video := VideoReplyBody{MediaID: mediaID, Title: msg.FileName}
+		if desc, ok := msg.Metadata["wecom_video_description"].(string); ok {
+			video.Description = desc
 		}
+		body[mediaType] = video
 	default:
-		body[mediaType] = map[string]interface{}{
-			"media_id": mediaID,
-		}
+		body[mediaType] = MediaReplyBody{MediaID: mediaID}
 	}
 }

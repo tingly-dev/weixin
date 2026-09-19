@@ -101,11 +101,19 @@ func (b *WecomBot) uploadInit(ctx context.Context, mediaType, filename string, t
 		},
 	}
 
-	if err := b.client.SendRaw(ctx, frame); err != nil {
+	ack, err := b.client.SendRaw(ctx, frame)
+	if err != nil {
 		return nil, err
 	}
 
-	return &UploadInitResult{UploadID: generateReqID("upload")}, nil
+	var result UploadInitResult
+	if err := parseFrameBody(ack.Body, &result); err != nil {
+		return nil, fmt.Errorf("parse upload init response: %w", err)
+	}
+	if result.UploadID == "" {
+		return nil, fmt.Errorf("upload init: server did not return an upload_id")
+	}
+	return &result, nil
 }
 
 func (b *WecomBot) uploadChunks(ctx context.Context, uploadID string, data []byte, chunkCount int) error {
@@ -147,7 +155,7 @@ func (b *WecomBot) uploadChunks(ctx context.Context, uploadID string, data []byt
 				},
 			}
 
-			if err := b.client.SendRaw(ctx, frame); err != nil {
+			if _, err := b.client.SendRaw(ctx, frame); err != nil {
 				errCh <- fmt.Errorf("chunk %d: %w", idx, err)
 			}
 		}(i, chunk)
@@ -174,15 +182,19 @@ func (b *WecomBot) uploadFinish(ctx context.Context, uploadID string) (*UploadFi
 		},
 	}
 
-	if err := b.client.SendRaw(ctx, frame); err != nil {
+	ack, err := b.client.SendRaw(ctx, frame)
+	if err != nil {
 		return nil, err
 	}
 
-	return &UploadFinishResult{
-		Type:      "file",
-		MediaID:   uploadID,
-		CreatedAt: "",
-	}, nil
+	var result UploadFinishResult
+	if err := parseFrameBody(ack.Body, &result); err != nil {
+		return nil, fmt.Errorf("parse upload finish response: %w", err)
+	}
+	if result.MediaID == "" {
+		return nil, fmt.Errorf("upload finish: server did not return a media_id")
+	}
+	return &result, nil
 }
 
 func detectMediaTypeFromFilename(filename string) string {
@@ -215,10 +227,12 @@ var (
 		".mov": true,
 		".avi": true,
 	}
+	// WeCom's backend only accepts AMR for voice messages; the official
+	// plugin downgrades any other audio format to a generic file rather than
+	// sending it as voice (which the server would reject). .mp3/.wav/.silk
+	// are therefore classified as files here, not voice.
 	audioExts = map[string]bool{
-		".silk": true,
-		".mp3":  true,
-		".wav":  true,
+		".amr": true,
 	}
 )
 

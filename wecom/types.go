@@ -139,7 +139,9 @@ type VideoContent struct {
 	AESKey string `json:"aeskey,omitempty"`
 }
 
-// MsgQuote holds a quoted/replied-to message.
+// MsgQuote holds a quoted/replied-to message. WeCom's quote protocol carries
+// only inline content (no ID for the quoted message); see convert.go for how
+// this is surfaced on types.Message.
 type MsgQuote struct {
 	MsgType string        `json:"msgtype"`
 	Text    *TextContent  `json:"text,omitempty"`
@@ -147,6 +149,11 @@ type MsgQuote struct {
 	Mixed   *MixedContent `json:"mixed,omitempty"`
 	Voice   *VoiceContent `json:"voice,omitempty"`
 	File    *FileContent  `json:"file,omitempty"`
+	// Video is not declared on the official SDK's own QuoteContent type, but
+	// the reference plugin's message parser handles msgtype=="video" quotes
+	// in practice (real traffic exceeds the SDK's published type). Declared
+	// here so a quoted video's url/aeskey aren't silently dropped on parse.
+	Video *VideoContent `json:"video,omitempty"`
 }
 
 // ---------------------------------------------------------------------------

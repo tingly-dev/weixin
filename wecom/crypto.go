@@ -47,10 +47,14 @@ func DecryptFile(encrypted []byte, aesKey string) ([]byte, error) {
 	decrypted := make([]byte, len(encrypted))
 	mode.CryptBlocks(decrypted, encrypted)
 
+	if len(decrypted) == 0 {
+		return nil, fmt.Errorf("decrypted data is empty")
+	}
+
 	// Manual PKCS#7 unpadding with 32-byte block support.
 	// WeCom uses a non-standard padding that may use 32-byte block size.
 	padding := int(decrypted[len(decrypted)-1])
-	if padding == 0 || padding > 32 {
+	if padding == 0 || padding > 32 || padding > len(decrypted) {
 		return nil, fmt.Errorf("invalid padding size: %d", padding)
 	}
 
