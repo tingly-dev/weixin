@@ -7,7 +7,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"log"
-	"strconv"
 )
 
 // generateClientID generates a unique client ID.
@@ -87,10 +86,10 @@ func (c *Client) SendMessageItem(ctx context.Context, toUserID string, opts Send
 	if err != nil {
 		return "", err
 	}
-	if resp.MessageID == 0 {
+	if resp.MessageID == "" || resp.MessageID == "0" {
 		return "", nil
 	}
-	return strconv.FormatUint(resp.MessageID, 10), nil
+	return string(resp.MessageID), nil
 }
 
 // SendTextMessage sends a text message.

@@ -1,6 +1,42 @@
 // Package api provides WeChat API implementations and types.
 package api
 
+import "encoding/json"
+
+// LosslessID is a message/server ID that may arrive either as a JSON number
+// (uint64, e.g. 7507094999942111240) or as a JSON string (e.g.
+// "v1:15492892230605430853"). The upstream openclaw-weixin plugin routes the
+// fields message_id, msg_id and svr_id through a lossless parser that quotes
+// raw uint64 tokens into strings before JSON.parse (api.ts LOSSLESS_ID_FIELDS);
+// this type is the Go equivalent: numbers are captured verbatim as their
+// decimal text, strings are taken as-is, so no precision or prefix is lost.
+type LosslessID string
+
+// UnmarshalJSON accepts either a JSON string or a raw number token.
+func (id *LosslessID) UnmarshalJSON(data []byte) error {
+	if string(data) == "null" {
+		*id = ""
+		return nil
+	}
+	if len(data) > 0 && data[0] == '"' {
+		var s string
+		if err := json.Unmarshal(data, &s); err != nil {
+			return err
+		}
+		*id = LosslessID(s)
+		return nil
+	}
+	// Raw number token: keep the literal digits to avoid float64 precision loss.
+	*id = LosslessID(data)
+	return nil
+}
+
+// MarshalJSON always emits a JSON string, matching the upstream plugin's
+// post-lossless-parse representation.
+func (id LosslessID) MarshalJSON() ([]byte, error) {
+	return json.Marshal(string(id))
+}
+
 // Message type constants from WeChat API.
 const (
 	MessageTypeNone = iota
@@ -35,13 +71,14 @@ const (
 
 // WeixinMessage represents a message from WeChat API.
 //
-// MessageID is uint64 on the wire. Unlike the upstream JS plugin (which must
-// string-quote it before JSON.parse to avoid float64 precision loss above
-// 2^53), Go's encoding/json unmarshals directly into uint64 without any
-// precision loss, so no string workaround is needed here.
+// MessageID uses LosslessID: the server historically sent it as a raw uint64
+// JSON number, but ID fields are migrating to prefixed strings (msg_id is
+// already "v1:<digits>" on the wire), so all three lossless fields
+// (message_id, msg_id, svr_id) accept both encodings — mirroring the upstream
+// plugin's LOSSLESS_ID_FIELDS handling.
 type WeixinMessage struct {
 	Seq          int64         `json:"seq,omitempty"`
-	MessageID    uint64        `json:"message_id,omitempty"`
+	MessageID    LosslessID    `json:"message_id,omitempty"`
 	FromUserID   string        `json:"from_user_id,omitempty"`
 	ToUserID     string        `json:"to_user_id,omitempty"`
 	CreateTimeMs int64         `json:"create_time_ms,omitempty"`
@@ -55,7 +92,7 @@ type WeixinMessage struct {
 // MessageItem represents content within a message.
 type MessageItem struct {
 	Type      int        `json:"type,omitempty"`
-	MsgID     uint64     `json:"msg_id,omitempty"`
+	MsgID     LosslessID `json:"msg_id,omitempty"`
 	TextItem  *TextItem  `json:"text_item,omitempty"`
 	ImageItem *ImageItem `json:"image_item,omitempty"`
 	VoiceItem *VoiceItem `json:"voice_item,omitempty"`
@@ -88,8 +125,8 @@ type RefMessage struct {
 	MessageItem *MessageItem `json:"message_item,omitempty"`
 	Title       string       `json:"title,omitempty"` // 摘要
 	// SvrID is the quoted message's server ID, used when newer clients omit
-	// the quoted content. uint64 on the wire (see WeixinMessage.MessageID).
-	SvrID uint64 `json:"svr_id,omitempty"`
+	// the quoted content. Number or string on the wire (see WeixinMessage.MessageID).
+	SvrID LosslessID `json:"svr_id,omitempty"`
 	// PartialText describes a selected substring of the quoted message, if any.
 	PartialText *PartialText `json:"partial_text,omitempty"`
 }
@@ -200,10 +237,9 @@ type SendMessageResponse struct {
 	Ret    int32  `json:"ret,omitempty"`
 	ErrMsg string `json:"errmsg,omitempty"`
 	// MessageID is the server-assigned ID for the sent message (since
-	// openclaw-weixin v2.4.9-beta.0). uint64 on the wire; see
-	// WeixinMessage.MessageID for why no lossless-string workaround is needed
-	// in Go.
-	MessageID uint64 `json:"message_id,omitempty"`
+	// openclaw-weixin v2.4.9-beta.0). Number or string on the wire; see
+	// WeixinMessage.MessageID.
+	MessageID LosslessID `json:"message_id,omitempty"`
 }
 
 // WeixinMessageWrapper wraps WeixinMessage for sending.

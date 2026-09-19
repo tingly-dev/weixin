@@ -106,7 +106,7 @@ func ConvertInboundMessage(msg *api.WeixinMessage, accountID, cdnBaseURL string)
 	}
 
 	result := &types.Message{
-		MessageID:    fmt.Sprintf("%d", msg.MessageID),
+		MessageID:    string(msg.MessageID),
 		AccountID:    accountID,
 		ChatType:     types.ChatTypeDirect, // WeChat only supports direct messages
 		Timestamp:    timestamp,
@@ -201,11 +201,11 @@ func applyQuoteContext(result *types.Message, msg *api.WeixinMessage) {
 
 	// Only set ReplyToID when a real id was found; a ref_msg with neither
 	// svr_id nor a nested message_item.msg_id (e.g. an empty ref_msg, or one
-	// carrying only a title) must not surface a fake "0" id.
-	if ref.SvrID != 0 {
-		result.ReplyToID = fmt.Sprintf("%d", ref.SvrID)
-	} else if ref.MessageItem != nil && ref.MessageItem.MsgID != 0 {
-		result.ReplyToID = fmt.Sprintf("%d", ref.MessageItem.MsgID)
+	// carrying only a title) must not surface a fake empty/zero id.
+	if ref.SvrID != "" && ref.SvrID != "0" {
+		result.ReplyToID = string(ref.SvrID)
+	} else if ref.MessageItem != nil && ref.MessageItem.MsgID != "" && ref.MessageItem.MsgID != "0" {
+		result.ReplyToID = string(ref.MessageItem.MsgID)
 	}
 	result.ReplyToBody = inlineQuoteBody(ref)
 
