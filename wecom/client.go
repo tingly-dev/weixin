@@ -3,6 +3,7 @@ package wecom
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -12,6 +13,13 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/tingly-dev/weixin/types"
 )
+
+// errAuthFailed marks an error returned by authenticate as an auth rejection
+// (non-zero errcode on the subscribe ack), as opposed to a network/dial
+// failure. Reconnect scheduling uses this to pick the auth-failure budget
+// (MaxAuthFailures) instead of the network-drop budget (MaxReconnectAttempts),
+// mirroring the official SDK's two separate reconnect counters.
+var errAuthFailed = errors.New("wecom: auth failed")
 
 // ClientConfig holds configuration for the WeCom AI Bot WebSocket client.
 type ClientConfig struct {
@@ -25,6 +33,11 @@ type ClientConfig struct {
 	MaxAuthFailures      int // -1 for infinite
 	ReplyAckTimeout      time.Duration
 	Logger               *log.Logger // nil for silent
+
+	// ExtraAuthParams are merged into the aibot_subscribe auth frame's body
+	// alongside bot_id/secret (e.g. {"scene": 1, "plug_version": "1.0.0"}).
+	// Mirrors the official SDK's setCredentials(botId, botSecret, extraAuthParams).
+	ExtraAuthParams map[string]interface{}
 }
 
 func (c *ClientConfig) applyDefaults() {
@@ -60,8 +73,10 @@ type Client struct {
 
 	handler types.EventHandler
 
-	// Ack tracking: req_id -> channel to signal ack received
-	ackChans   map[string]chan struct{}
+	// Ack tracking: req_id -> channel receiving the server's ack frame
+	// (its Body/ErrCode/ErrMsg), so callers can read real server responses
+	// (e.g. upload_id, media_id) instead of only knowing "acked or not".
+	ackChans   map[string]chan *WsFrame
 	ackChansMu sync.Mutex
 
 	// Reply serialization: per-req_id send channel
@@ -69,10 +84,19 @@ type Client struct {
 	replyChans   map[string]chan *sendOp
 	replyChansMu sync.Mutex
 
-	// Lifecycle
+	// Per-connection lifecycle: cancelled/recreated on every (re)connect,
+	// scoping the read/heartbeat loops for the current socket only.
 	cancel    context.CancelFunc
 	done      chan struct{}
 	connected bool
+
+	// Client-level lifecycle: spans reconnects, cancelled only by Disconnect().
+	lifecycleCtx    context.Context
+	lifecycleCancel context.CancelFunc
+	manualClose     bool
+
+	reconnectAttempts   int
+	authFailureAttempts int
 }
 
 // NewClient creates a new WeCom AI Bot client.
@@ -80,7 +104,7 @@ func NewClient(cfg ClientConfig) *Client {
 	cfg.applyDefaults()
 	return &Client{
 		cfg:        cfg,
-		ackChans:   make(map[string]chan struct{}),
+		ackChans:   make(map[string]chan *WsFrame),
 		replyChans: make(map[string]chan *sendOp),
 	}
 }
@@ -91,8 +115,13 @@ type sendOp struct {
 }
 
 // Connect opens the WebSocket, authenticates, and starts the read loop.
-// It blocks until the connection is established and authenticated, or returns an error.
-// Use SetEventHandler before calling Connect to receive messages.
+// It blocks until the connection is established and authenticated, or returns
+// an error. Use SetEventHandler before calling Connect to receive messages.
+//
+// After a successful Connect, an unexpected drop (network error, missed
+// heartbeats) is retried automatically with exponential backoff — see
+// ClientConfig.ReconnectBaseDelay/ReconnectMaxDelay/MaxReconnectAttempts/
+// MaxAuthFailures. Call Disconnect to stop reconnecting and close for good.
 func (c *Client) Connect(ctx context.Context) error {
 	c.mu.Lock()
 	if c.connected {
@@ -101,6 +130,21 @@ func (c *Client) Connect(ctx context.Context) error {
 	}
 	c.mu.Unlock()
 
+	c.lifecycleCtx, c.lifecycleCancel = context.WithCancel(context.Background())
+	c.manualClose = false
+	c.reconnectAttempts = 0
+	c.authFailureAttempts = 0
+
+	if err := c.connectOnce(ctx); err != nil {
+		c.lifecycleCancel()
+		return err
+	}
+	return nil
+}
+
+// connectOnce dials, authenticates, and starts the read/heartbeat loops for a
+// single connection attempt. Used by both Connect and the reconnect loop.
+func (c *Client) connectOnce(ctx context.Context) error {
 	dialer := websocket.Dialer{
 		HandshakeTimeout: 10 * time.Second,
 	}
@@ -113,7 +157,7 @@ func (c *Client) Connect(ctx context.Context) error {
 	c.mu.Lock()
 	c.conn = conn
 	c.connected = true
-	ctx, cancel := context.WithCancel(context.Background())
+	loopCtx, cancel := context.WithCancel(context.Background())
 	c.cancel = cancel
 	c.done = make(chan struct{})
 	c.mu.Unlock()
@@ -126,23 +170,38 @@ func (c *Client) Connect(ctx context.Context) error {
 	})
 
 	// Authenticate (writeFrame acquires c.mu internally)
-	if err := c.authenticate(ctx); err != nil {
-		c.Disconnect()
+	if err := c.authenticate(loopCtx); err != nil {
+		c.teardownConn()
 		return err
 	}
 
 	// Start background goroutines
-	go c.readLoop(ctx)
-	go c.heartbeatLoop(ctx)
+	go c.readLoop(loopCtx)
+	go c.heartbeatLoop(loopCtx)
 
 	return nil
 }
 
-// Disconnect gracefully closes the WebSocket connection.
+// Disconnect gracefully closes the WebSocket connection and stops any
+// pending/future reconnect attempts.
 func (c *Client) Disconnect() {
 	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.manualClose = true
+	c.mu.Unlock()
 
+	if c.lifecycleCancel != nil {
+		c.lifecycleCancel()
+	}
+
+	c.teardownConn()
+}
+
+// teardownConn closes the current socket and per-connection loops without
+// touching the client-level lifecycle or manualClose flag, so it's safe to
+// call both from a deliberate Disconnect and from internal drop handling
+// (which needs the socket closed but reconnection to still proceed).
+func (c *Client) teardownConn() {
+	c.mu.Lock()
 	if c.cancel != nil {
 		c.cancel()
 	}
@@ -156,8 +215,10 @@ func (c *Client) Disconnect() {
 	}
 
 	c.connected = false
+	c.mu.Unlock()
+
 	c.ackChansMu.Lock()
-	c.ackChans = make(map[string]chan struct{})
+	c.ackChans = make(map[string]chan *WsFrame)
 	c.ackChansMu.Unlock()
 	c.replyChansMu.Lock()
 	c.replyChans = make(map[string]chan *sendOp)
@@ -176,10 +237,11 @@ func (c *Client) SetEventHandler(h types.EventHandler) {
 	c.handler = h
 }
 
-// SendReply sends a reply frame to an incoming message.
+// SendReply sends a reply frame to an incoming message and returns the
+// server's ack frame (its Body may carry a response payload depending on cmd).
 // reqID must be the req_id from the incoming callback frame.
 // It blocks until the server acknowledges or the ack timeout expires.
-func (c *Client) SendReply(ctx context.Context, reqID string, body interface{}) error {
+func (c *Client) SendReply(ctx context.Context, reqID string, body interface{}) (*WsFrame, error) {
 	frame := &WsFrame{
 		Cmd:     CmdResponse,
 		Headers: WsFrameHeaders{ReqID: reqID},
@@ -189,7 +251,7 @@ func (c *Client) SendReply(ctx context.Context, reqID string, body interface{}) 
 }
 
 // SendWelcome sends a welcome message. Must be called within 5s of enter_chat event.
-func (c *Client) SendWelcome(ctx context.Context, reqID string, body interface{}) error {
+func (c *Client) SendWelcome(ctx context.Context, reqID string, body interface{}) (*WsFrame, error) {
 	frame := &WsFrame{
 		Cmd:     CmdResponseWelcome,
 		Headers: WsFrameHeaders{ReqID: reqID},
@@ -199,7 +261,7 @@ func (c *Client) SendWelcome(ctx context.Context, reqID string, body interface{}
 }
 
 // SendUpdateCard updates a template card. Must be called within 5s of card event.
-func (c *Client) SendUpdateCard(ctx context.Context, reqID string, body interface{}) error {
+func (c *Client) SendUpdateCard(ctx context.Context, reqID string, body interface{}) (*WsFrame, error) {
 	frame := &WsFrame{
 		Cmd:     CmdResponseUpdate,
 		Headers: WsFrameHeaders{ReqID: reqID},
@@ -209,7 +271,7 @@ func (c *Client) SendUpdateCard(ctx context.Context, reqID string, body interfac
 }
 
 // SendProactive sends a proactive message without an incoming callback.
-func (c *Client) SendProactive(ctx context.Context, body interface{}) error {
+func (c *Client) SendProactive(ctx context.Context, body interface{}) (*WsFrame, error) {
 	reqID := generateReqID(CmdSendMsg)
 	frame := &WsFrame{
 		Cmd:     CmdSendMsg,
@@ -219,8 +281,9 @@ func (c *Client) SendProactive(ctx context.Context, body interface{}) error {
 	return c.sendAndWaitAck(ctx, frame, reqID)
 }
 
-// SendRaw sends a raw frame (used by upload flow).
-func (c *Client) SendRaw(ctx context.Context, frame *WsFrame) error {
+// SendRaw sends a raw frame (used by upload flow) and returns the server's
+// ack frame so callers can read response fields (e.g. upload_id, media_id).
+func (c *Client) SendRaw(ctx context.Context, frame *WsFrame) (*WsFrame, error) {
 	return c.sendAndWaitAck(ctx, frame, frame.Headers.ReqID)
 }
 
@@ -229,13 +292,18 @@ func (c *Client) SendRaw(ctx context.Context, frame *WsFrame) error {
 // ---------------------------------------------------------------------------
 
 func (c *Client) authenticate(ctx context.Context) error {
+	body := map[string]interface{}{
+		"bot_id": c.cfg.BotID,
+		"secret": c.cfg.Secret,
+	}
+	for k, v := range c.cfg.ExtraAuthParams {
+		body[k] = v
+	}
+
 	frame := &WsFrame{
 		Cmd:     CmdSubscribe,
 		Headers: WsFrameHeaders{ReqID: generateReqID(CmdSubscribe)},
-		Body: map[string]interface{}{
-			"bot_id": c.cfg.BotID,
-			"secret": c.cfg.Secret,
-		},
+		Body:    body,
 	}
 
 	if err := c.writeFrame(frame); err != nil {
@@ -249,7 +317,7 @@ func (c *Client) authenticate(ctx context.Context) error {
 	}
 
 	if ack.ErrCode != 0 {
-		return fmt.Errorf("auth failed: %s (errcode=%d)", ack.ErrMsg, ack.ErrCode)
+		return fmt.Errorf("%w: %s (errcode=%d)", errAuthFailed, ack.ErrMsg, ack.ErrCode)
 	}
 
 	return nil
@@ -292,9 +360,7 @@ func (c *Client) handleReadError(ctx context.Context, err error) {
 		c.cfg.log("connection closed")
 	}
 
-	c.mu.Lock()
-	c.connected = false
-	c.mu.Unlock()
+	c.teardownConn()
 
 	// Notify handler
 	if c.handler != nil {
@@ -303,6 +369,13 @@ func (c *Client) handleReadError(ctx context.Context, err error) {
 			Timestamp: time.Now(),
 			Payload:   map[string]interface{}{"reason": err.Error()},
 		})
+	}
+
+	c.mu.Lock()
+	manual := c.manualClose
+	c.mu.Unlock()
+	if !manual {
+		go c.scheduleReconnect(false)
 	}
 }
 
@@ -317,8 +390,8 @@ func (c *Client) dispatchFrame(ctx context.Context, frame *WsFrame) {
 	case frame.Cmd == CmdEventCallback:
 		c.handleEventCallback(ctx, frame)
 	case frame.Cmd == "":
-		// Ack frame (no cmd) — signal the waiting sender
-		c.signalAck(frame.Headers.ReqID)
+		// Ack frame (no cmd) — signal the waiting sender with the full frame.
+		c.signalAck(frame)
 	default:
 		c.cfg.log("unknown frame cmd: %s", frame.Cmd)
 	}
@@ -391,7 +464,7 @@ func (c *Client) heartbeatLoop(ctx context.Context) {
 				Headers: WsFrameHeaders{ReqID: generateReqID(CmdHeartbeat)},
 			}
 
-			ackCh := make(chan struct{})
+			ackCh := make(chan *WsFrame, 1)
 			c.ackChansMu.Lock()
 			c.ackChans[frame.Headers.ReqID] = ackCh
 			c.ackChansMu.Unlock()
@@ -412,7 +485,20 @@ func (c *Client) heartbeatLoop(ctx context.Context) {
 
 			if missedPongs >= 2 {
 				c.cfg.log("too many missed heartbeats, closing connection")
-				c.Disconnect()
+				c.teardownConn()
+				if c.handler != nil {
+					c.handler.OnEvent(ctx, &types.Event{
+						EventType: "disconnected",
+						Timestamp: time.Now(),
+						Payload:   map[string]interface{}{"reason": "missed heartbeats"},
+					})
+				}
+				c.mu.Lock()
+				manual := c.manualClose
+				c.mu.Unlock()
+				if !manual {
+					go c.scheduleReconnect(false)
+				}
 				return
 			}
 		}
@@ -420,19 +506,108 @@ func (c *Client) heartbeatLoop(ctx context.Context) {
 }
 
 // ---------------------------------------------------------------------------
+// Internal: reconnect
+// ---------------------------------------------------------------------------
+
+// scheduleReconnect waits with exponential backoff, then retries connectOnce.
+// It uses separate attempt budgets for auth failures vs. network drops,
+// mirroring the official SDK's design (see ws.d.ts's scheduleReconnect doc).
+// A manual Disconnect (which cancels lifecycleCtx) aborts any pending or
+// future reconnect.
+func (c *Client) scheduleReconnect(authFailure bool) {
+	c.mu.Lock()
+	manual := c.manualClose
+	lifecycleCtx := c.lifecycleCtx
+	c.mu.Unlock()
+	if manual || lifecycleCtx == nil {
+		return
+	}
+
+	var attempt, maxAttempts int
+	c.mu.Lock()
+	if authFailure {
+		c.authFailureAttempts++
+		attempt = c.authFailureAttempts
+	} else {
+		c.reconnectAttempts++
+		attempt = c.reconnectAttempts
+	}
+	c.mu.Unlock()
+	if authFailure {
+		maxAttempts = c.cfg.MaxAuthFailures
+	} else {
+		maxAttempts = c.cfg.MaxReconnectAttempts
+	}
+
+	if maxAttempts >= 0 && attempt > maxAttempts {
+		c.cfg.log("wecom: giving up reconnecting after %d attempts (authFailure=%v)", attempt-1, authFailure)
+		if c.handler != nil {
+			c.handler.OnEvent(lifecycleCtx, &types.Event{
+				EventType: "reconnect_failed",
+				Timestamp: time.Now(),
+				Payload:   map[string]interface{}{"attempts": attempt - 1, "auth_failure": authFailure},
+			})
+		}
+		return
+	}
+
+	delay := c.cfg.ReconnectBaseDelay * time.Duration(int64(1)<<uint(attempt-1))
+	if delay <= 0 || delay > c.cfg.ReconnectMaxDelay {
+		delay = c.cfg.ReconnectMaxDelay
+	}
+
+	c.cfg.log("wecom: reconnecting in %s (attempt %d, authFailure=%v)", delay, attempt, authFailure)
+	if c.handler != nil {
+		c.handler.OnEvent(lifecycleCtx, &types.Event{
+			EventType: "reconnecting",
+			Timestamp: time.Now(),
+			Payload:   map[string]interface{}{"attempt": attempt, "delay_ms": delay.Milliseconds()},
+		})
+	}
+
+	timer := time.NewTimer(delay)
+	select {
+	case <-lifecycleCtx.Done():
+		timer.Stop()
+		return
+	case <-timer.C:
+	}
+
+	if err := c.connectOnce(lifecycleCtx); err != nil {
+		c.cfg.log("wecom: reconnect attempt %d failed: %v", attempt, err)
+		c.scheduleReconnect(errors.Is(err, errAuthFailed))
+		return
+	}
+
+	c.mu.Lock()
+	c.reconnectAttempts = 0
+	c.authFailureAttempts = 0
+	c.mu.Unlock()
+	if c.handler != nil {
+		c.handler.OnEvent(lifecycleCtx, &types.Event{
+			EventType: "reconnected",
+			Timestamp: time.Now(),
+		})
+	}
+}
+
+// ---------------------------------------------------------------------------
 // Internal: send with ack
 // ---------------------------------------------------------------------------
 
-func (c *Client) sendAndWaitAck(ctx context.Context, frame *WsFrame, reqID string) error {
+// sendAndWaitAck sends frame and waits for the server's ack, returning it.
+// A non-zero ack.ErrCode is surfaced as an error (with the ack frame still
+// returned, so the caller can inspect ErrMsg/ErrCode themselves if needed).
+func (c *Client) sendAndWaitAck(ctx context.Context, frame *WsFrame, reqID string) (*WsFrame, error) {
 	c.mu.Lock()
 	if !c.connected {
 		c.mu.Unlock()
-		return fmt.Errorf("not connected")
+		return nil, fmt.Errorf("not connected")
 	}
 	c.mu.Unlock()
 
 	// Register ack channel
-	ackCh := make(chan struct{})
+	ackCh := make(chan *WsFrame, 1)
 	c.ackChansMu.Lock()
 	c.ackChans[reqID] = ackCh
 	c.ackChansMu.Unlock()
@@ -444,28 +619,36 @@ func (c *Client) sendAndWaitAck(ctx context.Context, frame *WsFrame, reqID strin
 	}()
 
 	if err := c.writeFrame(frame); err != nil {
-		return err
+		return nil, err
 	}
 
 	// Wait for ack or timeout
 	select {
-	case <-ackCh:
-		return nil
+	case ack := <-ackCh:
+		if ack.ErrCode != 0 {
+			errmsg := ack.ErrMsg
+			if errmsg == "" {
+				errmsg = "(none)"
+			}
+			return ack, fmt.Errorf("wecom ack failed: errcode=%d errmsg=%s", ack.ErrCode, errmsg)
+		}
+		return ack, nil
 	case <-time.After(c.cfg.ReplyAckTimeout):
-		return fmt.Errorf("reply ack timeout")
+		return nil, fmt.Errorf("reply ack timeout")
 	case <-ctx.Done():
-		return ctx.Err()
+		return nil, ctx.Err()
 	}
 }
 
-func (c *Client) signalAck(reqID string) {
+func (c *Client) signalAck(frame *WsFrame) {
+	reqID := frame.Headers.ReqID
 	c.ackChansMu.Lock()
 	ch, ok := c.ackChans[reqID]
 	delete(c.ackChans, reqID)
 	c.ackChansMu.Unlock()
 
 	if ok {
-		close(ch)
+		ch <- frame
 	}
 }
 

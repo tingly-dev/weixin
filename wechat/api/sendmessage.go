@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"log"
+	"strconv"
 )
 
 // generateClientID generates a unique client ID.
@@ -38,12 +39,12 @@ func buildSendWrapper(toUserID string, opts SendOptions, items []MessageItem) *W
 	}
 }
 
-// SendMessage sends a message to weixin.
+// sendMessage sends a message to weixin and returns the parsed response.
 //
 // Since openclaw-weixin v2.4.5 the response is parsed and a non-zero ret is
 // returned as an error instead of fire-and-forget, so callers can detect
 // delivery failures.
-func (c *Client) SendMessage(ctx context.Context, toUserID string, opts SendOptions, items []MessageItem) error {
+func (c *Client) sendMessage(ctx context.Context, toUserID string, opts SendOptions, items []MessageItem) (*SendMessageResponse, error) {
 	req := &SendMessageRequest{
 		Msg:      buildSendWrapper(toUserID, opts, items),
 		BaseInfo: c.BuildBaseInfo(),
@@ -51,16 +52,26 @@ func (c *Client) SendMessage(ctx context.Context, toUserID string, opts SendOpti
 
 	var resp SendMessageResponse
 	if err := c.doRequest(ctx, "ilink/bot/sendmessage", req, &resp); err != nil {
-		return err
+		return nil, err
 	}
 	if resp.Ret != 0 {
 		errmsg := resp.ErrMsg
 		if errmsg == "" {
 			errmsg = "(none)"
 		}
-		return fmt.Errorf("sendMessage failed: ret=%d errmsg=%s", resp.Ret, errmsg)
+		return nil, fmt.Errorf("sendMessage failed: ret=%d errmsg=%s", resp.Ret, errmsg)
 	}
-	return nil
+	return &resp, nil
+}
+
+// SendMessage sends a message to weixin.
+//
+// Since openclaw-weixin v2.4.5 the response is parsed and a non-zero ret is
+// returned as an error instead of fire-and-forget, so callers can detect
+// delivery failures.
+func (c *Client) SendMessage(ctx context.Context, toUserID string, opts SendOptions, items []MessageItem) error {
+	_, err := c.sendMessage(ctx, toUserID, opts, items)
+	return err
 }
 
 // SendMessageItem sends a single structured MessageItem.
@@ -69,14 +80,17 @@ func (c *Client) SendMessage(ctx context.Context, toUserID string, opts SendOpti
 // SendMessage. Used for one-shot structured sends such as tool-call progress
 // messages (TOOL_CALL_START / TOOL_CALL_RESULT).
 //
-// Returns the assigned message id if the server provides one, empty otherwise.
+// Returns the assigned message id if the server provides one (since
+// openclaw-weixin v2.4.9-beta.0), empty otherwise.
 func (c *Client) SendMessageItem(ctx context.Context, toUserID string, opts SendOptions, item MessageItem) (string, error) {
-	if err := c.SendMessage(ctx, toUserID, opts, []MessageItem{item}); err != nil {
+	resp, err := c.sendMessage(ctx, toUserID, opts, []MessageItem{item})
+	if err != nil {
 		return "", err
 	}
-	// The current sendMessage response only carries ret/errmsg; there is no
-	// message id on the wire, so nothing to return here.
-	return "", nil
+	if resp.MessageID == 0 {
+		return "", nil
+	}
+	return strconv.FormatUint(resp.MessageID, 10), nil
 }
 
 // SendTextMessage sends a text message.

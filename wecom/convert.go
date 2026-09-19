@@ -36,14 +36,20 @@ func convertToChannelMessage(msg *IncomingMessage, reqID string) *types.Message 
 		chMsg.Text = msg.Voice.Content
 	}
 
-	// Extract quote
+	// Extract quote. WeCom's quote protocol carries only inline content (see
+	// MsgQuote) — there is no ID for the quoted message on the wire, so
+	// ReplyToID is intentionally left unset here rather than set to this
+	// message's own ID (which would misleadingly look like a real quoted-
+	// message reference). Metadata["reply_to_is_quote"] mirrors the
+	// convention used by the wechat package for the same "is a reply, body
+	// may or may not be resolved" signal.
 	if msg.Quote != nil {
 		quoteText := extractQuoteText(msg.Quote)
 		chMsg.Metadata["quote"] = map[string]interface{}{
 			"msgType": msg.Quote.MsgType,
 			"text":    quoteText,
 		}
-		chMsg.ReplyToID = msg.MsgID // quoted messages are effectively replies
+		chMsg.Metadata["reply_to_is_quote"] = true
 	}
 
 	// Extract attachments

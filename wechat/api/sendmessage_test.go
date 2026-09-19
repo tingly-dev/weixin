@@ -165,6 +165,41 @@ func TestSendMessageItem_ToolCallResultRoundTrip(t *testing.T) {
 	}
 }
 
+func TestSendMessageItem_ReturnsServerMessageID(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"ret":0,"message_id":18446744073709551615}`))
+	}))
+	defer srv.Close()
+
+	c := NewClient(srv.URL, "test-token")
+	id, err := c.SendMessageItem(context.Background(), "user-1", SendOptions{},
+		MessageItem{Type: MessageItemTypeToolCallStart, ToolCallStartItem: &ToolCallStartItem{}})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// max uint64: verifies no float64 precision loss decoding the id.
+	if id != "18446744073709551615" {
+		t.Fatalf("id = %q, want max uint64", id)
+	}
+}
+
+func TestSendMessageItem_NoMessageID_ReturnsEmpty(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"ret":0}`))
+	}))
+	defer srv.Close()
+
+	c := NewClient(srv.URL, "test-token")
+	id, err := c.SendMessageItem(context.Background(), "user-1", SendOptions{},
+		MessageItem{Type: MessageItemTypeToolCallStart, ToolCallStartItem: &ToolCallStartItem{}})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if id != "" {
+		t.Fatalf("expected empty id when server omits message_id, got %q", id)
+	}
+}
+
 func TestSendMessageItem_DelegatesAndValidates(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(`{"ret":-1,"errmsg":"bad"}`))
