@@ -162,8 +162,9 @@ The SDK provides six core adapters for bot operations:
   Newer WeChat clients may send ID-only quotes (`ReplyToID` set, `ReplyToBody`
   empty, `Metadata["reply_to_is_quote"] == true`) since this SDK does not keep
   a local message-history cache to resolve them against; see
-  [understand-tencent-weixin-openclaw-weixin's quote-store analysis](https://github.com/FFengIll/understand-tencent-weixin-openclaw-weixin)
-  if your application needs full resolution and wants to build that cache itself.
+  [`docs/quote-cache_zh_CN.md`](https://github.com/Tencent/openclaw-weixin/blob/main/docs/quote-cache_zh_CN.md)
+  in the official plugin repo (below) if your application needs full resolution
+  and wants to build that cache itself.
 
 ## Examples
 
@@ -185,7 +186,15 @@ go run main.go
 
 ## Protocol Documentation
 
-For detailed architecture and protocol documentation, see:
+The primary source of truth for the wire protocol is the official
+`@tencent-weixin/openclaw-weixin` plugin's own GitHub source, not just its npm
+tarball — it ships a maintained protocol spec and a full test suite that a
+published tarball strips out:
+- [Tencent/openclaw-weixin](https://github.com/Tencent/openclaw-weixin) — official channel plugin source
+  - [`docs/protocol.md`](https://github.com/Tencent/openclaw-weixin/blob/main/docs/protocol.md) / [`docs/protocol_zh_CN.md`](https://github.com/Tencent/openclaw-weixin/blob/main/docs/protocol_zh_CN.md) — protocol spec
+  - `src/**/*.test.ts` — ground-truth behavior fixtures (e.g. `src/messaging/inbound.test.ts` for quote/reply edge cases)
+
+For architecture analysis and version-to-version diffs against this Go SDK, see:
 - [understand-tencent-weixin-openclaw-weixin](https://github.com/FFengIll/understand-tencent-weixin-openclaw-weixin)
 
 ## License
