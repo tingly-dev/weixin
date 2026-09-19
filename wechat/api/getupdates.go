@@ -8,25 +8,16 @@ import (
 
 // GetUpdates performs long-polling for new messages.
 func (c *Client) GetUpdates(ctx context.Context, syncBuf string) (*GetUpdatesResponse, error) {
-	req := &GetUpdatesRequest{
-		GetUpdatesBuf: syncBuf,
-		BaseInfo:      c.BuildBaseInfo(),
-	}
-
-	resp := &GetUpdatesResponse{}
-	err := c.doRequestWithTimeout(ctx, "ilink/bot/getupdates", DefaultLongPollTimeout, req, resp)
-	if err != nil {
-		// Timeout is normal for long-poll, return empty response
-		return &GetUpdatesResponse{
-			Ret:           0,
-			GetUpdatesBuf: syncBuf, // Return same sync buf on timeout
-		}, nil
-	}
-
-	return resp, nil
+	return c.GetUpdatesWithTimeout(ctx, syncBuf, DefaultLongPollTimeout)
 }
 
 // GetUpdatesWithTimeout performs long-polling with a custom timeout.
+//
+// A long-poll timeout is normal and yields an empty response (handled inside
+// doRequestWithTimeout, which returns nil on deadline exceeded with respBody
+// left empty); any other error — network failure, HTTP error, JSON parse
+// failure — is propagated so callers can log/retry instead of silently
+// dropping messages.
 func (c *Client) GetUpdatesWithTimeout(ctx context.Context, syncBuf string, timeout time.Duration) (*GetUpdatesResponse, error) {
 	req := &GetUpdatesRequest{
 		GetUpdatesBuf: syncBuf,
@@ -34,13 +25,13 @@ func (c *Client) GetUpdatesWithTimeout(ctx context.Context, syncBuf string, time
 	}
 
 	resp := &GetUpdatesResponse{}
-	err := c.doRequestWithTimeout(ctx, "ilink/bot/getupdates", timeout, req, resp)
-	if err != nil {
-		// Timeout is normal for long-poll, return empty response
-		return &GetUpdatesResponse{
-			Ret:           0,
-			GetUpdatesBuf: syncBuf, // Return same sync buf on timeout
-		}, nil
+	if err := c.doRequestWithTimeout(ctx, "ilink/bot/getupdates", timeout, req, resp); err != nil {
+		return nil, err
+	}
+
+	// Timed-out long-poll: respBody untouched, echo the caller's sync buf.
+	if resp.GetUpdatesBuf == "" {
+		resp.GetUpdatesBuf = syncBuf
 	}
 
 	return resp, nil
