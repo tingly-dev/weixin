@@ -144,7 +144,8 @@ func TestE2E_GetUpdatesParsesWire(t *testing.T) {
 }
 
 // TestE2E_ReceiveInteractive is a human-in-the-loop receive test: it sends a
-// prompt to the paired user and long-polls until that user replies.
+// prompt to the paired user, long-polls until that user replies, then echoes
+// the reply back so the human can see the round-trip completed.
 //
 // Skipped unless WEIXIN_E2E_RECEIVE=1 is set, since it needs a human to reply
 // from the WeChat client:
@@ -198,6 +199,19 @@ func TestE2E_ReceiveInteractive(t *testing.T) {
 				t.Fatalf("received user message %s but conversion returned nil", msg.MessageID)
 			}
 			t.Logf("received reply: id=%s text=%q", converted.MessageID, converted.Text)
+
+			// Echo back so the human sees the test completed. Reply with the
+			// received context_token so it lands in the same conversation
+			// context.
+			echo := &types.OutboundMessage{
+				To:           account.UserID,
+				Text:         "【e2e 收消息测试通过】已收到你的回复: " + converted.Text,
+				ContextToken: msg.ContextToken,
+			}
+			if _, err := bot.Send(ctx, echo); err != nil {
+				t.Fatalf("send completion echo: %v", err)
+			}
+			t.Log("completion echo sent")
 			return
 		}
 	}
